@@ -1,0 +1,9 @@
+{
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "ram_bytes": 35743748096,
+  "logical_cpu_count": 5,
+  "affinity_cpu_count": 5,
+  "cpu_quota": "400000 100000",
+  "cpu_model": "AMD EPYC 9V74 80-Core Processor"
+}

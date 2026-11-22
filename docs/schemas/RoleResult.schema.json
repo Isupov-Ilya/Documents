@@ -1,0 +1,68 @@
+{
+  "$defs": {
+    "Role": {
+      "enum": [
+        "interviewer",
+        "respondent",
+        "third_party",
+        "unknown"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "SpeakerRole": {
+      "additionalProperties": false,
+      "properties": {
+        "speaker_id": {
+          "title": "Speaker Id",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/Role"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "source_segment_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Segment Ids",
+          "type": "array"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "speaker_id",
+        "role",
+        "confidence",
+        "source_segment_ids",
+        "reason"
+      ],
+      "title": "SpeakerRole",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "speakers": {
+      "items": {
+        "$ref": "#/$defs/SpeakerRole"
+      },
+      "title": "Speakers",
+      "type": "array"
+    }
+  },
+  "required": [
+    "speakers"
+  ],
+  "title": "RoleResult",
+  "type": "object"
+}

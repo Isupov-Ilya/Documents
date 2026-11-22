@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "people": [
+    {
+      "person_id": "batch_0000_SPEAKER_00",
+      "name": null,
+      "relationship_to_respondent": null,
+      "identity_status": "ambiguous",
+      "mentions": [
+        {
+          "segment_id": "seg_000002",
+          "text": "interview your. Назовите ваше имя и расскажите, где вы родились."
+        }
+      ]
+    },
+    {
+      "person_id": "batch_0000_SPEAKER_01",
+      "name": null,
+      "relationship_to_respondent": null,
+      "identity_status": "ambiguous",
+      "mentions": [
+        {
+          "segment_id": "seg_000004",
+          "text": "зовут Иван Сергеевич Вольков. Я родился в Самаре в 1980 году."
+        },
+        {
+          "segment_id": "seg_000012",
+          "text": "отец Петр Вольков родился примерно в 1950 году. Потом он переехал в Казан."
+        },
+        {
+          "segment_id": "seg_000016",
+          "text": "Мой коллега Иван переехал в Москву. Он уволился в 2010 году."
+        }
+      ]
+    }
+  ],
+  "facts": [],
+  "relations": [],
+  "conflicts": [],
+  "uncertainties": []
+}

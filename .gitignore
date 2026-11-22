@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+.bundle-venv/
+wheelhouse/
+build/
+dist/
+models/
+results/
+*.log
+.ruff_cache/
+core
+core.*

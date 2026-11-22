@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "mode": "saved_transcript_models",
+  "status": "failed",
+  "requires_human_review": true,
+  "stages": {
+    "roles": {
+      "status": "completed",
+      "seconds": 0.005
+    },
+    "facts": {
+      "status": "failed",
+      "seconds": 65.1099
+    }
+  },
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "accuracy_measured": false,
+  "roles_source": "provided_mapping",
+  "elapsed_seconds": 70.6757,
+  "peak_process_tree_rss_bytes_sampled": 4354715648,
+  "memory_sampling_interval_ms": 50,
+  "memory_limitations": "RSS includes children; GPU VRAM not measured; brief peaks may be missed",
+  "error": "ValueError: Упоминание человека не подтверждено репликой"
+}

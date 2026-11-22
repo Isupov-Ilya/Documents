@@ -1,0 +1,329 @@
+{
+  "schema_version": "1.0",
+  "people": [
+    {
+      "person_id": "batch_0000_SPEAKER_00",
+      "name": null,
+      "relationship_to_respondent": null,
+      "identity_status": "explicit",
+      "mentions": [
+        {
+          "segment_id": "seg_000002",
+          "text": "Я interview your"
+        },
+        {
+          "segment_id": "seg_000005",
+          "text": "Когда"
+        },
+        {
+          "segment_id": "seg_000007",
+          "text": "В"
+        },
+        {
+          "segment_id": "seg_000011",
+          "text": "Мой"
+        },
+        {
+          "segment_id": "seg_000013",
+          "text": "Возможно, отец родился в 1951 году."
+        }
+      ]
+    },
+    {
+      "person_id": "batch_0000_SPEAKER_01",
+      "name": null,
+      "relationship_to_respondent": null,
+      "identity_status": "explicit",
+      "mentions": [
+        {
+          "segment_id": "seg_000003",
+          "text": "Меня"
+        },
+        {
+          "segment_id": "seg_000004",
+          "text": "зовут Иван Сергеевич Вольков"
+        },
+        {
+          "segment_id": "seg_000006",
+          "text": "Я родился в Самаре в 1980 году"
+        },
+        {
+          "segment_id": "seg_000008",
+          "text": "2002 году я окончил технический университет"
+        },
+        {
+          "segment_id": "seg_000008",
+          "text": "С 2005 года работал инженером на заводе"
+        },
+        {
+          "segment_id": "seg_000012",
+          "text": "отец Петр Вольков родился примерно в 1950 году"
+        },
+        {
+          "segment_id": "seg_000012",
+          "text": "Потом он переехал в Казан"
+        },
+        {
+          "segment_id": "seg_000014",
+          "text": "А"
+        },
+        {
+          "segment_id": "seg_000016",
+          "text": "Мой"
+        },
+        {
+          "segment_id": "seg_000017",
+          "text": "коллега Иван переехал в Москву"
+        }
+      ]
+    },
+    {
+      "person_id": "batch_0000_SPEAKER_01_00",
+      "name": null,
+      "relationship_to_respondent": null,
+      "identity_status": "inferred_from_context",
+      "mentions": [
+        {
+          "segment_id": "seg_000015",
+          "text": "кто еще переехал"
+        }
+      ]
+    },
+    {
+      "person_id": "batch_0000_SPEAKER_01_01",
+      "name": null,
+      "relationship_to_respondent": null,
+      "identity_status": "inferred_from_context",
+      "mentions": [
+        {
+          "segment_id": "seg_000016",
+          "text": "Мой"
+        }
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "fact_id": "batch_0000_000001",
+      "subject_person_id": "batch_0000_SPEAKER_00",
+      "predicate": "full_name",
+      "value": "interview",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000002",
+          "quote": "Я interview your"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000002",
+      "subject_person_id": "batch_0000_SPEAKER_00",
+      "predicate": "birth_year",
+      "value": "1980",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000004",
+          "quote": "Я родился в Самаре в 1980 году"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000003",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "full_name",
+      "value": "Иван Сергеевич Вольков",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000004",
+          "quote": "зовут Иван Сергеевич Вольков"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000004",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "birth_year",
+      "value": "1980",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000004",
+          "quote": "Я родился в Самаре в 1980 году"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000005",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "birth_year",
+      "value": "1950",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000012",
+          "quote": "отец Петр Вольков родился примерно в 1950 году"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000006",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "birth_year",
+      "value": "1951",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000012",
+          "quote": "Потом он переехал в Казан"
+        },
+        {
+          "segment_id": "seg_000013",
+          "quote": "Возможно, отец родился в 1951 году"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "ambiguous",
+      "has_conflict": true,
+      "conflict_group_id": "batch_0000_000006",
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000007",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "birth_year",
+      "value": "1951",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000013",
+          "quote": "Возможно, отец родился в 1951 году"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "ambiguous",
+      "has_conflict": true,
+      "conflict_group_id": "batch_0000_000007",
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000008",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "birth_year",
+      "value": "2002",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000008",
+          "quote": "2002 году я окончил технический университет"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000009",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "birth_year",
+      "value": "2005",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000008",
+          "quote": "С 2005 года работал инженером на заводе"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "batch_0000_000010",
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "predicate": "birth_year",
+      "value": "2010",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000017",
+          "quote": "коллега Иван переехал в Москву. Он уволился в 2010 году"
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    }
+  ],
+  "relations": [
+    {
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "object_person_id": "batch_0000_SPEAKER_01_00",
+      "relationship": "father",
+      "evidence": [
+        {
+          "segment_id": "seg_000012",
+          "quote": "отец Петр Вольков родился примерно в 1950 году"
+        }
+      ],
+      "requires_review": true
+    },
+    {
+      "subject_person_id": "batch_0000_SPEAKER_01",
+      "object_person_id": "batch_0000_SPEAKER_01_01",
+      "relationship": "colleague",
+      "evidence": [
+        {
+          "segment_id": "seg_000017",
+          "quote": "коллега Иван переехал в Москву"
+        }
+      ],
+      "requires_review": true
+    }
+  ],
+  "conflicts": [
+    {
+      "conflict_group_id": "batch_0000_000006",
+      "fact_ids": [
+        "batch_0000_000005",
+        "batch_0000_000006",
+        "batch_0000_000007"
+      ],
+      "explanation": "Два факта о годе рождения отца Волькова противоречат друг другу."
+    }
+  ],
+  "uncertainties": []
+}

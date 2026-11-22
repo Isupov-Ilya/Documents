@@ -1,0 +1,33 @@
+{
+  "speakers": [
+    {
+      "speaker_id": "SPEAKER_00",
+      "role": "interviewer",
+      "confidence": 0.9,
+      "source_segment_ids": [
+        "seg_000001",
+        "seg_000004"
+      ],
+      "reason": "Стартовая фраза и последующие вопросы"
+    },
+    {
+      "speaker_id": "SPEAKER_01",
+      "role": "respondent",
+      "confidence": 0.9,
+      "source_segment_ids": [
+        "seg_000002",
+        "seg_000006"
+      ],
+      "reason": "Самоописание и ответы"
+    },
+    {
+      "speaker_id": "SPEAKER_02",
+      "role": "third_party",
+      "confidence": 0.5,
+      "source_segment_ids": [
+        "seg_000009"
+      ],
+      "reason": "Недостаточно контекста"
+    }
+  ]
+}

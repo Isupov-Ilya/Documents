@@ -1,0 +1,17 @@
+# Candidate configuration for pyannote.audio 3.3.2, not quality-calibrated.
+# Replace checkpoints with trusted local files; do not use Hub IDs.
+version: 3.3.2
+pipeline:
+  name: pyannote.audio.pipelines.SpeakerDiarization
+  params:
+    segmentation: D:/Biography/models/segmentation-3.0/pytorch_model.bin
+    embedding: D:/Biography/models/pyannote-embedding/pytorch_model.bin
+    embedding_exclude_overlap: true
+    clustering: AgglomerativeClustering
+params:
+  clustering:
+    method: centroid
+    min_cluster_size: 12
+    threshold: 0.7
+  segmentation:
+    min_duration_off: 0.0

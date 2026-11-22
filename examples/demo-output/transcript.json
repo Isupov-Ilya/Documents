@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0",
+  "language": "ru",
+  "source_sha256": "1303442a788cd485ae4999ccf328daab54b1e9df329cad94509bb0d5a862f16f",
+  "source_kind": "synthetic_text",
+  "duration_seconds": 100.0,
+  "segments": [
+    {
+      "segment_id": "seg_000001",
+      "start_ms": 0,
+      "end_ms": 9000,
+      "text_raw": "Начинаю интервью. Я — интервьюер. Расскажите о себе.",
+      "speaker_id": "SPEAKER_00",
+      "speaker_role": "interviewer",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000002",
+      "start_ms": 10000,
+      "end_ms": 19000,
+      "text_raw": "Меня зовут Анна Сергеевна Волкова. Я родилась в Самаре в 1980 году.",
+      "speaker_id": "SPEAKER_01",
+      "speaker_role": "respondent",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000003",
+      "start_ms": 20000,
+      "end_ms": 29000,
+      "text_raw": "С 2005 года я работала инженером на заводе «Вектор».",
+      "speaker_id": "SPEAKER_01",
+      "speaker_role": "respondent",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000004",
+      "start_ms": 30000,
+      "end_ms": 39000,
+      "text_raw": "Расскажите об отце и образовании.",
+      "speaker_id": "SPEAKER_00",
+      "speaker_role": "interviewer",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000005",
+      "start_ms": 40000,
+      "end_ms": 49000,
+      "text_raw": "Мой отец Иван Петрович Волков родился примерно в 1950 году.",
+      "speaker_id": "SPEAKER_01",
+      "speaker_role": "respondent",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000006",
+      "start_ms": 50000,
+      "end_ms": 59000,
+      "text_raw": "В 2002 году я окончила технический университет в Самаре.",
+      "speaker_id": "SPEAKER_01",
+      "speaker_role": "respondent",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000007",
+      "start_ms": 60000,
+      "end_ms": 69000,
+      "text_raw": "Нет, отец родился в 1951 году. Я точно не помню.",
+      "speaker_id": "SPEAKER_01",
+      "speaker_role": "respondent",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000008",
+      "start_ms": 70000,
+      "end_ms": 79000,
+      "text_raw": "Иван, мой коллега, переехал в Казань. Он потом уволился.",
+      "speaker_id": "SPEAKER_01",
+      "speaker_role": "respondent",
+      "role_confidence": 0.9,
+      "requires_review": false,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000009",
+      "start_ms": 80000,
+      "end_ms": 89000,
+      "text_raw": "Они переехали примерно тогда. Я не помню, кто именно.",
+      "speaker_id": "SPEAKER_02",
+      "speaker_role": "third_party",
+      "role_confidence": 0.5,
+      "requires_review": true,
+      "overlapping_speakers": [],
+      "alignment_confidence": 1.0
+    },
+    {
+      "segment_id": "seg_000010",
+      "start_ms": 90000,
+      "end_ms": 99000,
+      "text_raw": "[неразборчиво]",
+      "speaker_id": null,
+      "speaker_role": "unknown",
+      "role_confidence": 0.0,
+      "requires_review": true,
+      "overlapping_speakers": [],
+      "alignment_confidence": 0.0
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "segmentation_model": "../segmentation/model.onnx",
+  "embedding_model": "../embedding/voxceleb_resnet34_LM.sherpa.onnx",
+  "num_clusters": 2,
+  "cluster_threshold": 0.5
+}

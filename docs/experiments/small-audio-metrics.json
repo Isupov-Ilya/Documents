@@ -1,0 +1,81 @@
+{
+  "synthetic": true,
+  "normalization": "lowercase, ё→е, punctuation removed; numbers NOT expanded",
+  "reference_words": 92,
+  "hypothesis_words": 92,
+  "word_edit_distance": 9,
+  "wer": 0.09782608695652174,
+  "speaker_mapping_by_maximum_overlap": {
+    "SPEAKER_00": "denis",
+    "SPEAKER_01": "dmitri"
+  },
+  "utterance_center_speaker_accuracy": 0.7777777777777778,
+  "utterance_centers": [
+    {
+      "expected": "denis",
+      "predicted": [
+        "denis"
+      ],
+      "correct": true
+    },
+    {
+      "expected": "dmitri",
+      "predicted": [
+        "dmitri"
+      ],
+      "correct": true
+    },
+    {
+      "expected": "denis",
+      "predicted": [
+        "denis"
+      ],
+      "correct": true
+    },
+    {
+      "expected": "dmitri",
+      "predicted": [],
+      "correct": false
+    },
+    {
+      "expected": "denis",
+      "predicted": [
+        "denis"
+      ],
+      "correct": true
+    },
+    {
+      "expected": "dmitri",
+      "predicted": [
+        "dmitri"
+      ],
+      "correct": true
+    },
+    {
+      "expected": "dmitri",
+      "predicted": [
+        "dmitri"
+      ],
+      "correct": true
+    },
+    {
+      "expected": "denis",
+      "predicted": [
+        "denis"
+      ],
+      "correct": true
+    },
+    {
+      "expected": "dmitri",
+      "predicted": [],
+      "correct": false
+    }
+  ],
+  "der_measured": false,
+  "limitations": [
+    "Single synthetic sample; not an independent acceptance corpus.",
+    "TTS utterance bounds include silence and are not speech-activity annotations.",
+    "Fixed two clusters used from known scenario; automatic speaker count not validated.",
+    "No manual semantic fact scoring is included in this metric."
+  ]
+}

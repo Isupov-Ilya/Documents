@@ -1,0 +1,236 @@
+{
+  "schema_version": "1.0",
+  "people": [
+    {
+      "person_id": "anna",
+      "name": "Анна Сергеевна Волкова",
+      "relationship_to_respondent": "self",
+      "identity_status": "explicit",
+      "mentions": [
+        {
+          "segment_id": "seg_000002",
+          "text": "Анна Сергеевна Волкова"
+        }
+      ]
+    },
+    {
+      "person_id": "father",
+      "name": "Иван Петрович Волков",
+      "relationship_to_respondent": "father",
+      "identity_status": "explicit",
+      "mentions": [
+        {
+          "segment_id": "seg_000005",
+          "text": "отец Иван Петрович Волков"
+        }
+      ]
+    },
+    {
+      "person_id": "colleague",
+      "name": "Иван",
+      "relationship_to_respondent": "colleague",
+      "identity_status": "explicit",
+      "mentions": [
+        {
+          "segment_id": "seg_000008",
+          "text": "Иван, мой коллега"
+        }
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "fact_id": "fact_001",
+      "subject_person_id": "anna",
+      "predicate": "birth",
+      "value": "Родилась в Самаре",
+      "date": {
+        "value": "1980",
+        "precision": "year",
+        "approximate": false
+      },
+      "evidence": [
+        {
+          "segment_id": "seg_000002",
+          "quote": "Я родилась в Самаре в 1980 году."
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "fact_002",
+      "subject_person_id": "anna",
+      "predicate": "employment",
+      "value": "Инженер, завод «Вектор»",
+      "date": {
+        "value": "С 2005 года",
+        "precision": "year",
+        "approximate": false
+      },
+      "evidence": [
+        {
+          "segment_id": "seg_000003",
+          "quote": "С 2005 года я работала инженером на заводе «Вектор»."
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "fact_003",
+      "subject_person_id": "father",
+      "predicate": "birth_year",
+      "value": "примерно 1950",
+      "date": {
+        "value": "примерно в 1950 году",
+        "precision": "year",
+        "approximate": true
+      },
+      "evidence": [
+        {
+          "segment_id": "seg_000005",
+          "quote": "родился примерно в 1950 году."
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "approximate",
+      "has_conflict": true,
+      "conflict_group_id": "birth_conflict",
+      "requires_review": true
+    },
+    {
+      "fact_id": "fact_004",
+      "subject_person_id": "anna",
+      "predicate": "education",
+      "value": "Окончила технический университет в Самаре",
+      "date": {
+        "value": "2002",
+        "precision": "year",
+        "approximate": false
+      },
+      "evidence": [
+        {
+          "segment_id": "seg_000006",
+          "quote": "В 2002 году я окончила технический университет в Самаре."
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "fact_005",
+      "subject_person_id": "father",
+      "predicate": "birth_year",
+      "value": "1951",
+      "date": {
+        "value": "1951",
+        "precision": "year",
+        "approximate": false
+      },
+      "evidence": [
+        {
+          "segment_id": "seg_000007",
+          "quote": "отец родился в 1951 году."
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "ambiguous",
+      "has_conflict": true,
+      "conflict_group_id": "birth_conflict",
+      "requires_review": true
+    },
+    {
+      "fact_id": "fact_006",
+      "subject_person_id": "colleague",
+      "predicate": "relocation",
+      "value": "Казань",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000008",
+          "quote": "Иван, мой коллега, переехал в Казань."
+        }
+      ],
+      "evidence_type": "reported",
+      "certainty": "explicit",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": false
+    },
+    {
+      "fact_id": "fact_007",
+      "subject_person_id": "colleague",
+      "predicate": "employment_end",
+      "value": "Уволился",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000008",
+          "quote": "Он потом уволился."
+        }
+      ],
+      "evidence_type": "inferred",
+      "certainty": "ambiguous",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": true
+    },
+    {
+      "fact_id": "fact_008",
+      "subject_person_id": null,
+      "predicate": "relocation",
+      "value": "Переехали, лицо и дата не установлены",
+      "date": null,
+      "evidence": [
+        {
+          "segment_id": "seg_000009",
+          "quote": "Они переехали примерно тогда. Я не помню, кто именно."
+        }
+      ],
+      "evidence_type": "unclear",
+      "certainty": "ambiguous",
+      "has_conflict": false,
+      "conflict_group_id": null,
+      "requires_review": true
+    }
+  ],
+  "relations": [
+    {
+      "subject_person_id": "father",
+      "object_person_id": "anna",
+      "relationship": "father",
+      "evidence": [
+        {
+          "segment_id": "seg_000005",
+          "quote": "Мой отец Иван Петрович Волков"
+        }
+      ],
+      "requires_review": true
+    }
+  ],
+  "conflicts": [
+    {
+      "conflict_group_id": "birth_conflict",
+      "fact_ids": [
+        "fact_003",
+        "fact_005"
+      ],
+      "explanation": "Возможное противоречие в годе рождения отца; сохранить обе версии."
+    }
+  ],
+  "uncertainties": [
+    "Неясно, о ком говорит третий участник.",
+    "Местоимение «Он» требует проверки по контексту.",
+    "Год рождения отца не установлен достоверно."
+  ]
+}

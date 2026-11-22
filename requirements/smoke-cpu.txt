@@ -1,0 +1,13 @@
+# Exact top-level versions exercised on Linux x86_64 / CPython 3.12.
+# NOT a tested Windows bundle. Build native llama.cpp using installed CC/CXX.
+pydantic==2.14.3
+psutil==7.2.2
+pytest==8.4.2
+faster-whisper==1.2.1
+ctranslate2==4.9.0
+av==16.1.0
+sherpa-onnx==2.0.1
+llama-cpp-python==0.3.36
+# Fixture and model-metadata preparation, not production runtime:
+piper-tts==1.8.0
+onnx==1.23.2

@@ -1,0 +1,103 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "whisper_model": {
+      "title": "Whisper Model",
+      "type": "string"
+    },
+    "diarization_config": {
+      "title": "Diarization Config",
+      "type": "string"
+    },
+    "diarization_backend": {
+      "default": "pyannote",
+      "enum": [
+        "pyannote",
+        "sherpa_onnx"
+      ],
+      "title": "Diarization Backend",
+      "type": "string"
+    },
+    "llm_model": {
+      "title": "Llm Model",
+      "type": "string"
+    },
+    "device": {
+      "default": "cpu",
+      "enum": [
+        "cpu",
+        "cuda"
+      ],
+      "title": "Device",
+      "type": "string"
+    },
+    "compute_type": {
+      "default": "int8",
+      "title": "Compute Type",
+      "type": "string"
+    },
+    "llm_gpu_layers": {
+      "default": 0,
+      "minimum": -1,
+      "title": "Llm Gpu Layers",
+      "type": "integer"
+    },
+    "llm_context": {
+      "default": 8192,
+      "minimum": 2048,
+      "title": "Llm Context",
+      "type": "integer"
+    },
+    "threads": {
+      "default": 4,
+      "minimum": 1,
+      "title": "Threads",
+      "type": "integer"
+    },
+    "min_speakers": {
+      "default": 2,
+      "maximum": 3,
+      "minimum": 2,
+      "title": "Min Speakers",
+      "type": "integer"
+    },
+    "max_speakers": {
+      "default": 3,
+      "maximum": 3,
+      "minimum": 2,
+      "title": "Max Speakers",
+      "type": "integer"
+    },
+    "role_threshold": {
+      "default": 0.85,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Role Threshold",
+      "type": "number"
+    },
+    "chunk_chars": {
+      "default": 5000,
+      "maximum": 20000,
+      "minimum": 500,
+      "title": "Chunk Chars",
+      "type": "integer"
+    },
+    "ffmpeg": {
+      "default": "ffmpeg",
+      "title": "Ffmpeg",
+      "type": "string"
+    },
+    "ffprobe": {
+      "default": "ffprobe",
+      "title": "Ffprobe",
+      "type": "string"
+    }
+  },
+  "required": [
+    "whisper_model",
+    "diarization_config",
+    "llm_model"
+  ],
+  "title": "Settings",
+  "type": "object"
+}

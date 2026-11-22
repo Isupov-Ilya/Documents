@@ -1,0 +1,135 @@
+{
+  "$defs": {
+    "Role": {
+      "enum": [
+        "interviewer",
+        "respondent",
+        "third_party",
+        "unknown"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "Segment": {
+      "additionalProperties": false,
+      "properties": {
+        "segment_id": {
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        },
+        "text_raw": {
+          "minLength": 1,
+          "title": "Text Raw",
+          "type": "string"
+        },
+        "speaker_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker Id"
+        },
+        "speaker_role": {
+          "$ref": "#/$defs/Role",
+          "default": "unknown"
+        },
+        "role_confidence": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Role Confidence",
+          "type": "number"
+        },
+        "requires_review": {
+          "default": true,
+          "title": "Requires Review",
+          "type": "boolean"
+        },
+        "overlapping_speakers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Overlapping Speakers",
+          "type": "array"
+        },
+        "alignment_confidence": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Alignment Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "segment_id",
+        "start_ms",
+        "end_ms",
+        "text_raw"
+      ],
+      "title": "Segment",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "language": {
+      "const": "ru",
+      "default": "ru",
+      "title": "Language",
+      "type": "string"
+    },
+    "source_sha256": {
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "source_kind": {
+      "default": "audio",
+      "enum": [
+        "audio",
+        "synthetic_text"
+      ],
+      "title": "Source Kind",
+      "type": "string"
+    },
+    "duration_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Duration Seconds",
+      "type": "number"
+    },
+    "segments": {
+      "items": {
+        "$ref": "#/$defs/Segment"
+      },
+      "title": "Segments",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source_sha256",
+    "duration_seconds",
+    "segments"
+  ],
+  "title": "Transcript",
+  "type": "object"
+}

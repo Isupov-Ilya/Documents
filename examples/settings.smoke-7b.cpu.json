@@ -1,0 +1,17 @@
+{
+  "whisper_model": "../models/whisper-small",
+  "diarization_config": "../models/diarization-onnx/config.json",
+  "llm_model": "../models/llm-7b/qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf",
+  "device": "cpu",
+  "compute_type": "int8",
+  "llm_gpu_layers": 0,
+  "llm_context": 8192,
+  "threads": 4,
+  "min_speakers": 2,
+  "max_speakers": 3,
+  "role_threshold": 0.85,
+  "chunk_chars": 16000,
+  "ffmpeg": "ffmpeg",
+  "ffprobe": "ffprobe",
+  "diarization_backend": "sherpa_onnx"
+}

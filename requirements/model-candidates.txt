@@ -1,0 +1,12 @@
+# Candidate environment, NOT a validated Windows lockfile.
+faster-whisper>=1.1,<2
+av>=11,<17
+pyannote.audio==3.3.2
+llama-cpp-python>=0.3,<0.4
+huggingface-hub>=0.24,<1
+numpy>=1.26,<2
+pyannote.core>=5,<6
+pyannote.database>=5,<6
+pyannote.metrics>=3.2,<4
+torch==2.5.1
+torchaudio==2.5.1

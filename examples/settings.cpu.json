@@ -1,0 +1,16 @@
+{
+  "whisper_model": "../models/whisper-ct2",
+  "diarization_config": "../models/diarization/config.yaml",
+  "llm_model": "../models/instruct.gguf",
+  "device": "cpu",
+  "compute_type": "int8",
+  "llm_gpu_layers": 0,
+  "llm_context": 8192,
+  "threads": 4,
+  "min_speakers": 2,
+  "max_speakers": 3,
+  "role_threshold": 0.85,
+  "chunk_chars": 5000,
+  "ffmpeg": "ffmpeg",
+  "ffprobe": "ffprobe"
+}

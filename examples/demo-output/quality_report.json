@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "mode": "synthetic_fixture_no_models",
+  "status": "completed",
+  "requires_human_review": true,
+  "stages": {
+    "roles": {
+      "status": "completed",
+      "seconds": 0.0066
+    },
+    "facts": {
+      "status": "completed",
+      "seconds": 0.0036
+    }
+  },
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "accuracy_measured": false,
+  "warning": "Демонстрация на заранее размеченном тексте. ASR, диаризация и LLM НЕ выполняются.",
+  "segments": 10,
+  "people": 3,
+  "facts": 8,
+  "conflicts": 1,
+  "uncertain_segments": 2,
+  "facts_requiring_review": 4,
+  "source_sha256": "1303442a788cd485ae4999ccf328daab54b1e9df329cad94509bb0d5a862f16f",
+  "source_kind": "synthetic_text",
+  "audit": {
+    "duplicate_candidates": [],
+    "conflict_candidates": [
+      [
+        "fact_003",
+        "fact_005"
+      ]
+    ],
+    "note": "Кандидаты для проверки человеком; различие формулировок не доказывает противоречие."
+  },
+  "limitations": [
+    "Цитаты проверены на вхождение, но это не доказательство истинности или полноты.",
+    "Автоматическая проверка семантической привязки и качества моделей не заменяет эксперта.",
+    "WER, DER, полнота и точность привязки не измерены."
+  ],
+  "elapsed_seconds": 0.0189,
+  "peak_process_tree_rss_bytes_sampled": 33304576,
+  "memory_sampling_interval_ms": 50,
+  "memory_limitations": "RSS includes children; GPU VRAM not measured; brief peaks may be missed"
+}
