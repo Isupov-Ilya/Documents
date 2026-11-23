@@ -112,8 +112,25 @@ def configure_desktop(app):
     app.setStyleSheet(DESKTOP_STYLE)
 
 
+def size_dialog(dialog, width, height):
+    screen = dialog.screen().availableGeometry()
+    dialog.resize(min(width, screen.width() - 32), min(height, screen.height() - 48))
+
+
+def dialog_buttons(primary, label):
+    buttons = QDialogButtonBox(primary | QDialogButtonBox.Cancel)
+    buttons.button(primary).setText(label)
+    buttons.button(primary).setProperty("primary", True)
+    buttons.button(QDialogButtonBox.Cancel).setText("Отмена")
+    return buttons
+
+
 def message(window, text):
-    QMessageBox.information(window, "Биография", str(text))
+    box = QMessageBox(
+        QMessageBox.Information, "Биография", str(text), QMessageBox.Ok, window
+    )
+    box.button(QMessageBox.Ok).setText("Закрыть")
+    box.exec()
 
 
 class PrepareThread(QThread):
@@ -143,24 +160,34 @@ class RolesDialog(QDialog):
     def __init__(self, transcript, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Уточните роли говорящих")
-        self.resize(850, 440)
+        size_dialog(self, 900, 365)
         layout = QVBoxLayout(self)
         layout.addWidget(
-            QLabel(
-                "Прослушайте примеры в основном окне и назначьте одного интервьюера и одного респондента."
+            caption(
+                "Назначьте одного интервьюера и одного респондента. Для уточнения прослушайте пример реплики."
             )
         )
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Голос", "Пример реплики", "Роль"])
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(
+            ["Голос", "Пример реплики", "Роль", "Аудио"]
+        )
+        self.table.verticalHeader().hide()
+        self.table.setAlternatingRowColors(True)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         layout.addWidget(self.table)
         self.combos = {}
+        self.player = getattr(parent, "player", None)
+        self.listen_timer = QTimer(self)
+        self.listen_timer.setSingleShot(True)
+        self.listen_timer.timeout.connect(self.stop_example)
+        self.finished.connect(self.stop_example)
         for speaker in sorted(
             {s.speaker_id for s in transcript.segments if s.speaker_id}
         ):
             example = next(s for s in transcript.segments if s.speaker_id == speaker)
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(speaker))
+            self.table.setItem(row, 0, QTableWidgetItem(f"Голос {row + 1}"))
             self.table.setItem(row, 1, QTableWidgetItem(example.text_raw))
             combo = QComboBox()
             for value, label in ROLES.items():
@@ -168,11 +195,34 @@ class RolesDialog(QDialog):
             combo.setCurrentIndex(max(0, combo.findData(example.speaker_role.value)))
             self.table.setCellWidget(row, 2, combo)
             self.combos[speaker] = combo
+            play = QPushButton("Слушать")
+            play.setEnabled(
+                self.player is not None and not self.player.source().isEmpty()
+            )
+            play.clicked.connect(
+                lambda checked=False, segment=example: self.play_example(segment)
+            )
+            self.table.setCellWidget(row, 3, play)
+            self.table.setRowHeight(row, 63)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.table.setColumnWidth(0, 76)
+        self.table.setColumnWidth(2, 158)
+        self.table.setColumnWidth(3, 95)
+        buttons = dialog_buttons(QDialogButtonBox.Ok, "Продолжить обработку")
         buttons.accepted.connect(self.validate)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def play_example(self, segment):
+        if self.player is not None:
+            self.player.setPosition(segment.start_ms)
+            self.player.play()
+            self.listen_timer.start(segment.end_ms - segment.start_ms)
+
+    def stop_example(self):
+        self.listen_timer.stop()
+        if self.player is not None:
+            self.player.pause()
 
     def mapping(self):
         return {speaker: combo.currentData() for speaker, combo in self.combos.items()}
@@ -201,10 +251,10 @@ class TemplateDialog(QDialog):
         self.setWindowTitle(
             "Настройка образца — персональные сведения не переносятся автоматически"
         )
-        self.resize(1050, 650)
+        size_dialog(self, 970, 610)
         layout = QVBoxLayout(self)
         layout.addWidget(
-            QLabel(
+            caption(
                 "Сопоставьте абзацы с полями. «Дословно» выбирайте только для текста без персональных сведений человека из образца."
             )
         )
@@ -215,7 +265,7 @@ class TemplateDialog(QDialog):
             [
                 "Текст образца",
                 "Поле результата",
-                "Дословно: подтверждаю отсутствие чужих персональных сведений",
+                "Постоянный текст",
             ]
         )
         self.fields = []
@@ -234,8 +284,10 @@ class TemplateDialog(QDialog):
             self.table.setCellWidget(row, 2, check)
             self.fixed.append(check)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table.setColumnWidth(1, 220)
+        self.table.setColumnWidth(2, 178)
         layout.addWidget(self.table)
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons = dialog_buttons(QDialogButtonBox.Save, "Сохранить шаблон")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -256,21 +308,26 @@ class ReviewDialog(QDialog):
         super().__init__(parent)
         self.facts = facts.model_copy(deep=True)
         self.setWindowTitle("Проверка людей и фактов")
-        self.resize(1150, 700)
+        size_dialog(self, 1100, 660)
         from .documents import LABELS
 
         layout = QVBoxLayout(self)
         layout.addWidget(
-            QLabel(
+            caption(
                 "Проверяйте сведения по аудио. Цитаты сохраняются неизменными. Исправления будут сохранены отдельной версией."
             )
         )
         tabs = QTabWidget()
         layout.addWidget(tabs)
         self.people = QTableWidget(len(facts.people), 3)
-        self.people.setHorizontalHeaderLabels(["Лицо", "Имя", "Связь с респондентом"])
+        self.people.setHorizontalHeaderLabels(["№", "Имя", "Связь с респондентом"])
+        self.people.setAlternatingRowColors(True)
+        self.people.verticalHeader().hide()
+        self.people.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.people.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.people.setColumnWidth(0, 45)
         for row, p in enumerate(facts.people):
-            item = QTableWidgetItem(p.person_id)
+            item = QTableWidgetItem(str(row + 1))
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             self.people.setItem(row, 0, item)
             self.people.setItem(row, 1, QTableWidgetItem(p.name or ""))
@@ -279,6 +336,8 @@ class ReviewDialog(QDialog):
             )
         tabs.addTab(self.people, "Люди")
         self.table = QTableWidget(len(facts.facts), 6)
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().hide()
         self.table.setHorizontalHeaderLabels(
             [
                 "Человек",
@@ -297,8 +356,8 @@ class ReviewDialog(QDialog):
         for row, f in enumerate(facts.facts):
             subject = QComboBox()
             subject.addItem("Лицо не установлено", None)
-            for p in people.values():
-                subject.addItem(p.name or p.person_id, p.person_id)
+            for index, p in enumerate(people.values(), 1):
+                subject.addItem(p.name or f"Человек № {index}", p.person_id)
             subject.setCurrentIndex(max(0, subject.findData(f.subject_person_id)))
             self.table.setCellWidget(row, 0, subject)
             self.subjects.append(subject)
@@ -323,14 +382,18 @@ class ReviewDialog(QDialog):
             self.certainties.append(certainty)
             quotes = QTableWidgetItem("\n".join(e.quote for e in f.evidence))
             quotes.setFlags(quotes.flags() & ~Qt.ItemIsEditable)
+            quotes.setToolTip(quotes.text())
             self.table.setItem(row, 4, quotes)
             approved = QCheckBox()
             approved.setChecked(f.human_reviewed)
             self.table.setCellWidget(row, 5, approved)
             self.approvals.append(approved)
+            self.table.setRowHeight(row, 63)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        for column, width in ((0, 167), (1, 142), (3, 144), (4, 195), (5, 84)):
+            self.table.setColumnWidth(column, width)
         tabs.addTab(self.table, "Факты")
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons = dialog_buttons(QDialogButtonBox.Save, "Сохранить правки")
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -1241,7 +1304,7 @@ class MainWindow(QMainWindow):
         )
         dialog = QDialog(self)
         dialog.setWindowTitle("Исправления по аудио — исходная версия сохраняется")
-        dialog.resize(1000, 650)
+        size_dialog(dialog, 1000, 650)
         layout = QVBoxLayout(dialog)
         table = QTableWidget(len(transcript.segments), 2)
         table.setHorizontalHeaderLabels(["Время", "Текст"])
@@ -1250,7 +1313,7 @@ class MainWindow(QMainWindow):
             table.setItem(row, 0, QTableWidgetItem(str(s.start_ms // 1000)))
             table.setItem(row, 1, QTableWidgetItem(s.text_raw))
         layout.addWidget(table)
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons = dialog_buttons(QDialogButtonBox.Save, "Сохранить и повторить анализ")
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
@@ -1282,9 +1345,7 @@ class MainWindow(QMainWindow):
         ):
             message(self, "Сначала дождитесь извлечения фактов")
             return
-        facts = FactSet.model_validate_json(
-            (self.current_output / "facts.json").read_text(encoding="utf-8")
-        )
+        facts = self.read_current_facts()
         dialog = ReviewDialog(facts, self)
         if dialog.exec() != QDialog.Accepted:
             return
@@ -1301,20 +1362,23 @@ class MainWindow(QMainWindow):
         except Exception as error:
             message(self, error)
 
+    def read_current_facts(self):
+        source = self.current_output / "facts.json"
+        selected = self.current_output / "selected_facts.json"
+        if selected.exists():
+            source = Path(json.loads(selected.read_text(encoding="utf-8"))["path"])
+        return FactSet.model_validate_json(source.read_text(encoding="utf-8"))
+
     def export_job(self):
         if not self.current_output:
             return
         try:
             from .documents import export_documents
 
-            source = self.current_output / "facts.json"
-            selected = self.current_output / "selected_facts.json"
-            if selected.exists():
-                source = Path(json.loads(selected.read_text(encoding="utf-8"))["path"])
             transcript = Transcript.model_validate_json(
                 (self.current_output / "transcript.json").read_text(encoding="utf-8")
             )
-            facts = FactSet.model_validate_json(source.read_text(encoding="utf-8"))
+            facts = self.read_current_facts()
             folder = self.current_output / "exports" / uuid.uuid4().hex
             result = export_documents(
                 transcript, facts, folder, self.profile.currentData()
