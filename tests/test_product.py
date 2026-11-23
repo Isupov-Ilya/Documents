@@ -541,3 +541,45 @@ def test_relationships_are_present_in_the_biography_not_only_in_json(tmp_path):
     text = "\n".join(p.text for p in Document(result["biography"]).paragraphs)
     assert "Роль первого лица: отец" in text
     assert "Основания связей между людьми" in text
+
+
+def test_uncle_or_someone_elses_surname_is_not_a_first_person_introduction():
+    from biography.documents import build_sections
+    from biography.schemas import Role
+
+    for phrase in ("Мой дядя Иван.", "Его фамилия Иван."):
+        segment = Segment(
+            segment_id="s",
+            start_ms=0,
+            end_ms=1000,
+            text_raw=phrase,
+            speaker_role=Role.respondent,
+        )
+        data = FactSet.model_validate(
+            {
+                "people": [
+                    {
+                        "person_id": "other",
+                        "name": "Иван",
+                        "identity_status": "explicit",
+                        "mentions": [{"segment_id": "s", "text": "Иван"}],
+                    }
+                ],
+                "facts": [
+                    {
+                        "fact_id": "f",
+                        "subject_person_id": "other",
+                        "predicate": "full_name",
+                        "value": "Иван",
+                        "evidence": [{"segment_id": "s", "quote": phrase}],
+                        "evidence_type": "reported",
+                        "certainty": "explicit",
+                    }
+                ],
+            }
+        )
+        sections, _ = build_sections(
+            data,
+            Transcript(source_sha256="test", duration_seconds=1, segments=[segment]),
+        )
+        assert sections["full_name"] == "Сведения не представлены"

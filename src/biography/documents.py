@@ -100,7 +100,9 @@ def build_sections(facts, transcript):
             if fact.predicate != "full_name" or fact.subject_person_id not in people:
                 continue
             name_pattern = re.escape(fact.value)
-            own_name = r"(?:меня\s+зовут|моя\s+фамилия|я[\s,—–:-]+)\s*" + name_pattern
+            own_name = (
+                r"(?<!\w)(?:меня\s+зовут|моя\s+фамилия|я[\s,—–:-]+)\s*" + name_pattern
+            )
             for e in fact.evidence:
                 segment = segments[e.segment_id]
                 if segment.speaker_role != Role.respondent:
