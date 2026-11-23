@@ -45,9 +45,17 @@ KIN = {"отец", "мать", "брат", "сестра", "сын", "дочь",
 
 def uncovered_sources(segments, data, respondents_only=False):
     evidence = {}
+    represented_years = {}
     for fact in data.facts:
+        years = set(
+            re.findall(
+                r"(?<!\d)[12]\d{3}(?!\d)",
+                fact.value + " " + (fact.date.value if fact.date else ""),
+            )
+        )
         for e in fact.evidence:
             evidence.setdefault(e.segment_id, []).append(e.quote)
+            represented_years.setdefault(e.segment_id, set()).update(years)
     for relation in data.relations:
         for e in relation.evidence:
             evidence.setdefault(e.segment_id, []).append(e.quote)
@@ -72,8 +80,13 @@ def uncovered_sources(segments, data, respondents_only=False):
                 continue
             if not any(a <= token.start() and token.end() <= b for a, b in spans):
                 meaningful.append(word)
-        if len(meaningful) >= 2 or any(
-            w in KIN or any(ch.isdigit() for ch in w) for w in meaningful
+        missing_years = set(
+            re.findall(r"(?<!\d)[12]\d{3}(?!\d)", s.text_raw)
+        ) - represented_years.get(s.segment_id, set())
+        if (
+            missing_years
+            or len(meaningful) >= 2
+            or any(w in KIN or any(ch.isdigit() for ch in w) for w in meaningful)
         ):
             result.append(s)
     return result

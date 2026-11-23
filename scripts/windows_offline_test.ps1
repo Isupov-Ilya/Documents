@@ -39,6 +39,7 @@ try {
     if ($LASTEXITCODE -ne 4) { throw 'Windows firewall did not block the application' }
     $project=Join-Path $DataDirectory 'Полная офлайн проверка'
     $profile=Join-Path $DataDirectory 'test-profile/profile.json'
+    $processingTimer=[Diagnostics.Stopwatch]::StartNew()
     & $Exe run $audio --config $config --output $project --template-profile $profile > (Join-Path $ReportDirectory 'processing.log') 2>&1
     $exitCode=$LASTEXITCODE
     $automaticRoles=$true
@@ -55,6 +56,7 @@ try {
         $exitCode=$LASTEXITCODE
     }
     if ($exitCode -ne 0) { throw "Actual offline pipeline failed: $exitCode" }
+    $processingTimer.Stop()
     if ((Get-FileHash $audio -Algorithm SHA256).Hash -ne $before) { throw 'Source audio was modified' }
     $env:PATH=$originalPath
     & $Python (Join-Path $PSScriptRoot 'validate_windows_output.py') --project $project --report (Join-Path $ReportDirectory 'offline-test.json') --minimum-duration $DurationSeconds
@@ -63,7 +65,7 @@ try {
     $env:PATH="$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem"
     & $Exe gui-smoke --data-directory $DataDirectory --project $project --output (Join-Path $ReportDirectory 'native-windows-gui.png') > (Join-Path $ReportDirectory 'gui.log') 2>&1
     if ($LASTEXITCODE -ne 0) { throw 'Native frozen Windows GUI/media test failed' }
-    $proof=@{outbound_firewall_block_verified=$true; network_positive_control=$true; python_removed_from_path=$true; source_audio_unchanged=$true; automatic_roles=$automaticRoles; windows=$PSVersionTable.OS; executable=$Exe}
+    $proof=@{outbound_firewall_block_verified=$true; network_positive_control=$true; python_removed_from_path=$true; source_audio_unchanged=$true; automatic_roles=$automaticRoles; processing_wall_seconds=$processingTimer.Elapsed.TotalSeconds; windows=$PSVersionTable.OS; executable=$Exe}
     [IO.File]::WriteAllText((Join-Path $ReportDirectory 'firewall-proof.json'),($proof|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 } finally {
     $env:PATH=$originalPath

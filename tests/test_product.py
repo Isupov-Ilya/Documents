@@ -694,3 +694,127 @@ def test_duplicate_model_person_ids_cannot_redirect_claims_to_another_person():
     )
     assert not result.people and not result.facts
     assert any(item["reason"] == "повторяющийся неоднозначный ID" for item in rejected)
+
+
+def test_wrong_model_source_id_is_resolved_only_by_a_unique_presented_literal_quote():
+    from biography.provenance import ground_model_part
+
+    part = cited_fact()
+    part.people[0].mentions[0].segment_id = "s1"
+    part.facts[0].evidence[0].segment_id = "wrong"
+    part.facts[0].evidence[0].quote = "коллега Иван переехал в Москву"
+    result, rejected = ground_model_part(
+        part, FactSet(people=[], facts=[]), split_segments()
+    )
+    validate_sources(result, split_segments())
+    assert not rejected
+    assert result.people[0].mentions[0].segment_id == "s2"
+    assert result.people[0].identity_status == "inferred_from_context"
+    assert result.facts[0].evidence[0].segment_id == "s2"
+    assert any("ID источника уточнён" in line for line in result.uncertainties)
+
+
+def test_ambiguous_or_unpresented_literal_quote_cannot_repair_a_model_source_id():
+    from biography.provenance import ground_model_part
+
+    part = cited_fact()
+    part.facts[0].evidence[0].segment_id = "wrong"
+    part.facts[0].evidence[0].quote = "Иван"
+    sources = split_segments()
+    extra = sources[1].model_copy(deep=True)
+    extra.segment_id = "s3"
+    extra.start_ms = 5000
+    extra.end_ms = 6000
+    sources.append(extra)
+    result, rejected = ground_model_part(part, FactSet(people=[], facts=[]), sources)
+    assert not result.facts and rejected
+    result, rejected = ground_model_part(
+        part, FactSet(people=[], facts=[]), sources, presented=sources[:1]
+    )
+    assert not result.facts and rejected
+
+
+def test_person_reference_can_use_its_independently_grounded_fact_context():
+    from biography.provenance import ground_model_part
+
+    part = cited_fact()
+    part.people[0].mentions[0].segment_id = "s1"
+    sources = split_segments()
+    extra = sources[1].model_copy(deep=True)
+    extra.segment_id = "s3"
+    extra.text_raw = "Я Иван. Это другой человек."
+    extra.start_ms = 5000
+    extra.end_ms = 6000
+    sources.append(extra)
+    result, rejected = ground_model_part(part, FactSet(people=[], facts=[]), sources)
+    validate_sources(result, sources)
+    assert not rejected and result.people[0].mentions[0].segment_id == "s2"
+
+
+def test_explicit_model_flag_cannot_erase_an_approximate_birth_year_in_the_quote():
+    from biography.claims import preserve_competing_claims
+
+    part = cited_fact()
+    fact = part.facts[0]
+    fact.predicate = "birth_year"
+    fact.value = "1950"
+    fact.evidence[0].quote = "Пётр родился примерно в 1950 году"
+    fact.certainty = "explicit"
+    result = preserve_competing_claims(part)
+    assert result.facts[0].certainty == "approximate"
+    assert result.facts[0].requires_review
+
+
+def test_equivalent_birth_field_names_use_the_same_conflict_and_rendering_rules():
+    from biography.claims import preserve_competing_claims
+    from biography.provenance import ground_model_part
+
+    part = cited_fact()
+    part.facts[0].predicate = "birth_place"
+    result, rejected = ground_model_part(
+        part, FactSet(people=[], facts=[]), split_segments()
+    )
+    assert result.facts[0].predicate == "place_of_birth"
+    fact = part.facts[0]
+    fact.predicate = "birth_year"
+    fact.value = "1950"
+    fact.evidence[0].quote = "Возможно, родился в 1950 году"
+    fact.certainty = "ambiguous"
+    assert preserve_competing_claims(part).facts[0].certainty == "ambiguous"
+
+
+def test_full_sentence_name_quote_does_not_hide_an_unextracted_birth_year():
+    from biography.coverage import uncovered_sources
+    from biography.schemas import Role
+
+    sources = split_segments()
+    sources[1].text_raw = "Иван родился в 1985 году."
+    sources[1].speaker_role = Role.respondent
+    part = cited_fact()
+    part.facts[0].predicate = "full_name"
+    part.facts[0].value = "Иван"
+    part.facts[0].evidence[0].quote = sources[1].text_raw
+    assert uncovered_sources(sources[1:], part) == sources[1:]
+
+
+def test_year_in_structured_date_is_counted_without_requiring_it_in_fact_value():
+    from biography.coverage import uncovered_sources
+    from biography.schemas import DateInfo
+
+    sources = split_segments()
+    sources[1].text_raw = "Иван переехал в Москву в 2010 году."
+    part = cited_fact()
+    part.facts[0].evidence[0].quote = sources[1].text_raw
+    part.facts[0].date = DateInfo(value="2010", precision="year", approximate=False)
+    assert not uncovered_sources(sources[1:], part)
+
+
+def test_unrelated_quote_cannot_cover_a_year_that_is_absent_from_the_fact_itself():
+    from biography.coverage import uncovered_sources
+
+    sources = split_segments()
+    sources[1].text_raw = "Иван переехал в Москву в 2010 году."
+    part = cited_fact()
+    part.facts[0].value = "завод Вектор"
+    part.facts[0].evidence[0].quote = sources[1].text_raw
+    assert uncovered_sources(sources[1:], part) == sources[1:]

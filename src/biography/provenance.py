@@ -5,10 +5,64 @@ from collections import Counter
 from .schemas import Evidence
 
 
-def ground_model_part(part, known, segments):
+def ground_model_part(part, known, segments, presented=None):
     """Quarantine ungrounded model candidates; saved/user data still validates strictly."""
-    result, repairs = expand_adjacent_evidence(part, segments)
     lookup = {s.segment_id: s.text_raw for s in segments}
+    shown = {
+        s.segment_id: s.text_raw
+        for s in (presented if presented is not None else segments)
+    }
+    result = part.model_copy(deep=True)
+    for fact in result.facts:
+        fact.predicate = {
+            "birth_date": "date_of_birth",
+            "birth_place": "place_of_birth",
+        }.get(fact.predicate, fact.predicate)
+
+    def resolve_reference(item, text, candidates=None):
+        if item.segment_id in lookup and text in lookup[item.segment_id]:
+            return
+        matches = [
+            key
+            for key, source in shown.items()
+            if text.strip()
+            and text in source
+            and (candidates is None or key in candidates)
+        ]
+        if len(matches) == 1:
+            previous = item.segment_id
+            item.segment_id = matches[0]
+            result.uncertainties.append(
+                "ID источника уточнён по единственной дословной цитате: "
+                + previous
+                + " → "
+                + item.segment_id
+                + ". Требуется проверка принадлежности сведения."
+            )
+
+    for fact in result.facts:
+        for evidence in fact.evidence:
+            resolve_reference(evidence, evidence.quote)
+    for relation in result.relations:
+        for evidence in relation.evidence:
+            resolve_reference(evidence, evidence.quote)
+    result, repairs = expand_adjacent_evidence(result, segments)
+    for person in result.people:
+        context_ids = {
+            evidence.segment_id
+            for fact in result.facts
+            if fact.subject_person_id == person.person_id
+            for evidence in fact.evidence
+            if evidence.segment_id in lookup
+            and evidence.quote in lookup[evidence.segment_id]
+        }
+        for mention in person.mentions:
+            previous = mention.segment_id
+            resolve_reference(mention, mention.text)
+            if mention.segment_id == previous and context_ids:
+                resolve_reference(mention, mention.text, context_ids)
+            if mention.segment_id != previous and person.identity_status != "ambiguous":
+                person.identity_status = "inferred_from_context"
     rejected = []
 
     def literal(source, quote):

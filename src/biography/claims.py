@@ -10,6 +10,29 @@ def preserve_competing_claims(data):
     result = data.model_copy(deep=True)
     expanded = []
     for fact in result.facts:
+        if fact.predicate in {"birth_year", "date_of_birth", "birth_date"}:
+            value_years = set(re.findall(r"(?<!\d)[12]\d{3}(?!\d)", fact.value))
+            for evidence in fact.evidence:
+                text = evidence.quote.casefold()
+                if len(re.findall(r"(?<!\d)[12]\d{3}(?!\d)", text)) != 1:
+                    continue
+                if any(year in text for year in value_years) and any(
+                    word in text
+                    for word in (
+                        "примерно",
+                        "возможно",
+                        "около",
+                        "приблизительно",
+                        "по-моему",
+                        "не помню",
+                        "не уверен",
+                    )
+                ):
+                    if fact.certainty == "explicit":
+                        fact.certainty = "approximate"
+                    fact.requires_review = True
+                    if fact.date:
+                        fact.date.approximate = True
         variants = []
         if fact.predicate == "birth_year" and len(fact.evidence) > 1:
             for evidence in fact.evidence:

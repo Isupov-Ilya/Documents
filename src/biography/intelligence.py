@@ -311,6 +311,13 @@ def _payload(merged, batch, namespace):
                 "subject_person_id": f.subject_person_id,
                 "predicate": f.predicate,
                 "value": f.value[:240],
+                "date": {
+                    "value": f.date.value[:120],
+                    "precision": f.date.precision,
+                    "approximate": f.date.approximate,
+                }
+                if f.date
+                else None,
             }
             for f in recent
         ],
@@ -356,7 +363,7 @@ def extract(segments, llm, limit=5000, checkpoint=None, trace=None, rejections=N
             checkpoint(sequence, part)
         if trace:
             trace(sequence, [s.segment_id for s in batch])
-        part, rejected = ground_model_part(part, merged, segments)
+        part, rejected = ground_model_part(part, merged, segments, presented=batch)
         if rejections:
             rejections(sequence, rejected)
         merged = _merge_part(merged, part, f"{sequence:04d}", segments)
