@@ -28,6 +28,10 @@ FIELDS = {
 STRUCTURAL = {"tbl", "tblGrid", "gridCol", "tr", "tc", "p", "r", "t"}
 FORMAT = {
     "pPr",
+    "pStyle",
+    "rStyle",
+    "tblStyle",
+    "tblStylePr",
     "rPr",
     "tblPr",
     "trPr",
@@ -149,9 +153,13 @@ def analyze_samples(paths):
     return blocks
 
 
-def _scrub(element):
+def _scrub(element, allowed_styles=None):
     tag = element.tag.split("}")[-1]
     if tag not in STRUCTURAL | FORMAT:
+        return None
+    if tag in {"pStyle", "rStyle", "tblStyle"} and element.get(qn("w:val")) not in (
+        allowed_styles or set()
+    ):
         return None
     result = OxmlElement("w:" + tag)
     for key, value in element.attrib.items():
@@ -161,7 +169,7 @@ def _scrub(element):
     if tag == "t":
         return result
     for child in element:
-        clean = _scrub(child)
+        clean = _scrub(child, allowed_styles)
         if clean is not None:
             result.append(clean)
     return result
@@ -174,6 +182,20 @@ def create_profile(paths, choices, destination: Path, name):
     if len(choices) != len(blocks):
         raise ValueError("Изменилась структура образца")
     document = Document()
+    allowed_styles = {s.style_id for s in document.styles}
+    # Only formatting properties of already-known styles; no custom style names/metadata.
+    for style in source.styles:
+        if style.style_id not in allowed_styles:
+            continue
+        target = document.styles.get_by_id(style.style_id, style.type)
+        for tag in ("pPr", "rPr", "tblPr", "trPr", "tcPr", "tblStylePr"):
+            for props in style.element.findall(qn("w:" + tag)):
+                safe = _scrub(props, allowed_styles)
+                if safe is None:
+                    continue
+                for previous in target.element.findall(qn("w:" + tag)):
+                    target.element.remove(previous)
+                target.element.append(safe)
     for child in list(document.element.body):
         if child.tag != qn("w:sectPr"):
             document.element.body.remove(child)
@@ -185,7 +207,7 @@ def create_profile(paths, choices, destination: Path, name):
         original_paragraphs = (
             [element] if element.tag == qn("w:p") else list(element.iter(qn("w:p")))
         )
-        clean = _scrub(element)
+        clean = _scrub(element, allowed_styles)
         clean_paragraphs = (
             [clean] if clean.tag == qn("w:p") else list(clean.iter(qn("w:p")))
         )
@@ -208,14 +230,44 @@ def create_profile(paths, choices, destination: Path, name):
                 if run.tag != qn("w:pPr"):
                     paragraph.remove(run)
             run = OxmlElement("w:r")
-            # Preserve direct run formatting without retaining source text or revisions.
-            original_run = original.find(qn("w:r"))
-            if original_run is not None:
-                props = original_run.find(qn("w:rPr"))
+            from docx.text.paragraph import Paragraph
+
+            chain = []
+            style = Paragraph(original, source._body).style
+            while style is not None and len(chain) < 20:
+                chain.insert(0, style)
+                style = style.base_style
+            properties = {}
+            for style in chain:
+                props = style.element.find(qn("w:rPr"))
                 if props is not None:
-                    safe_props = _scrub(props)
-                    if safe_props is not None:
-                        run.append(safe_props)
+                    for child in props:
+                        properties[child.tag] = child
+                pprops = style.element.find(qn("w:pPr"))
+                if pprops is not None:
+                    ppr = paragraph.find(qn("w:pPr"))
+                    if ppr is None:
+                        ppr = OxmlElement("w:pPr")
+                        paragraph.insert(0, ppr)
+                    for child in pprops:
+                        if ppr.find(child.tag) is None:
+                            safe = _scrub(child, allowed_styles)
+                            if safe is not None:
+                                ppr.append(safe)
+            original_run = original.find(qn("w:r"))
+            direct = (
+                original_run.find(qn("w:rPr")) if original_run is not None else None
+            )
+            if direct is not None:
+                for child in direct:
+                    properties[child.tag] = child
+            if properties:
+                rpr = OxmlElement("w:rPr")
+                for child in properties.values():
+                    safe = _scrub(child, allowed_styles)
+                    if safe is not None:
+                        rpr.append(safe)
+                run.append(rpr)
             t = OxmlElement("w:t")
             t.text = "{{" + block["slot"] + "}}"
             run.append(t)
@@ -267,6 +319,8 @@ def render_profile(path, sections):
     if profile.get("schema_version") != "1.0":
         raise ValueError("Неподдерживаемая версия профиля")
     document = Document(path.parent / "layout.docx")
+    document.core_properties.title = sections.get("title", "Биографические сведения")
+    document.core_properties.author = "Biography"
     slots = {s["slot"]: s for s in profile["slots"]}
     for p in document.element.body.iter(qn("w:p")):
         text = "".join(t.text or "" for t in p.iter(qn("w:t")))

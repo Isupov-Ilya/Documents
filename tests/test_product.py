@@ -389,3 +389,80 @@ def test_hour_sized_role_input_is_bounded_without_dropping_a_speaker():
         return RoleResult(speakers=[])
 
     assert infer_roles(sources, backend).speakers == []
+
+
+def test_template_retains_inherited_font_and_table_style_without_private_style_names(
+    tmp_path,
+):
+    from docx.enum.style import WD_STYLE_TYPE
+
+    from biography.templates import render_profile
+
+    source = tmp_path / "sample.docx"
+    d = Document()
+    style = d.styles.add_style("PRIVATE_STYLE_NAME", WD_STYLE_TYPE.PARAGRAPH)
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(19)
+    style.font.bold = True
+    d.add_paragraph("PRIVATE_PERSON_TEXT", style=style)
+    t = d.add_table(rows=1, cols=1)
+    t.style = "Table Grid"
+    t.cell(0, 0).text = "PRIVATE_PERSON_TEXT"
+    d.save(source)
+    choices = [
+        {"field": "full_name", "fixed": False} for _ in analyze_samples([source])
+    ]
+    profile = create_profile(
+        [source], choices, tmp_path / "profile", "PRIVATE_PROFILE_TITLE"
+    )
+    result, _ = render_profile(
+        profile, {"full_name": "Новое имя", "title": "Биография"}
+    )
+    assert result.paragraphs[0].runs[0].font.size == Pt(19)
+    assert result.paragraphs[0].runs[0].bold
+    assert result.tables[0].style.style_id == "TableGrid"
+    target = tmp_path / "result.docx"
+    result.save(target)
+    with zipfile.ZipFile(target) as z:
+        xml = "\n".join(
+            z.read(n).decode("utf-8", errors="replace")
+            for n in z.namelist()
+            if n.endswith(".xml")
+        )
+    for private in [
+        "PRIVATE_STYLE_NAME",
+        "PRIVATE_PERSON_TEXT",
+        "PRIVATE_PROFILE_TITLE",
+    ]:
+        assert private not in xml
+
+
+def test_unfounded_new_mention_does_not_replace_known_identity_or_pass_as_a_new_person():
+    from biography.intelligence import _merge_part
+
+    base = cited_fact()
+    base.facts[0].evidence[0].quote = "коллега Иван переехал в Москву"
+    known = _merge_part(FactSet(people=[], facts=[]), base, "base", split_segments())
+    person = known.people[0]
+    update = FactSet.model_validate(
+        {
+            "people": [
+                {
+                    "person_id": person.person_id,
+                    "name": "Чужое имя",
+                    "identity_status": "explicit",
+                    "mentions": [
+                        {"segment_id": "s1", "text": "Несуществующее упоминание"}
+                    ],
+                }
+            ],
+            "facts": [],
+        }
+    )
+    result = _merge_part(known, update, "update", split_segments())
+    assert result.people[0].name == "Иван"
+    assert result.people[0].mentions == known.people[0].mentions
+    assert any("отклонено" in text for text in result.uncertainties)
+    update.people[0].person_id = "new-person"
+    with pytest.raises(ValueError, match="Упоминание человека"):
+        _merge_part(known, update, "invalid", split_segments())

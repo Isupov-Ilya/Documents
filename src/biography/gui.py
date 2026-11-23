@@ -159,7 +159,7 @@ class TemplateDialog(QDialog):
                 "Сопоставьте абзацы с полями. «Дословно» выбирайте только для текста без персональных сведений человека из образца."
             )
         )
-        self.name = QLineEdit(Path(paths[0]).stem)
+        self.name = QLineEdit("Профиль биографии")
         layout.addWidget(self.name)
         self.table = QTableWidget(len(self.blocks), 3)
         self.table.setHorizontalHeaderLabels(
@@ -918,6 +918,11 @@ class MainWindow(QMainWindow):
 
     def load_project(self, folder):
         self.current_output = Path(folder)
+        metadata = self.current_output / "source.json"
+        if metadata.is_file():
+            self.audio_path.setText(
+                json.loads(metadata.read_text(encoding="utf-8"))["path"]
+            )
         path = self.current_output / "transcript.json"
         self.transcript = None
         if path.exists():
@@ -961,6 +966,10 @@ class MainWindow(QMainWindow):
             self.status.setText(
                 STATUSES.get(data.get("status"), data.get("status", ""))
             )
+        if report.exists() and data.get("status") == "completed":
+            self.progress.setRange(0, 100)
+            self.progress.setValue(100)
+        self.transcript_table.resizeRowsToContents()
         self.roles_button.setEnabled(bool(self.transcript))
         self.resume_button.setEnabled(
             bool(self.transcript) or (self.current_output / "source.json").is_file()
@@ -1153,6 +1162,7 @@ def smoke_gui(root, project, output):
     window = MainWindow(root)
     window.show()
     window.load_project(project)
+    window._settings_for_job("native-gui-preflight")
     for _ in range(40):
         app.processEvents()
         QTest.qWait(100)

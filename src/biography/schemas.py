@@ -73,7 +73,7 @@ class SpeakerRole(Record):
 
 
 class RoleResult(Record):
-    speakers: list[SpeakerRole]
+    speakers: list[SpeakerRole] = Field(max_length=3)
 
 
 class Mention(Record):

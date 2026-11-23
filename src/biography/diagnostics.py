@@ -1,4 +1,5 @@
 import importlib.metadata
+import importlib.util
 import shutil
 from pathlib import Path
 
@@ -17,7 +18,19 @@ def check_environment(settings):
         try:
             versions[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
-            errors.append(f"Не установлен пакет: {name}")
+            module = {
+                "faster-whisper": "faster_whisper",
+                "sherpa-onnx": "sherpa_onnx",
+                "llama-cpp-python": "llama_cpp",
+            }.get(name, name)
+            try:
+                present = importlib.util.find_spec(module) is not None
+            except ModuleNotFoundError:
+                present = False
+            if present:
+                versions[name] = "bundled (metadata unavailable)"
+            else:
+                errors.append(f"Не установлен пакет: {name}")
     for name in ("ffmpeg", "ffprobe"):
         if not shutil.which(getattr(settings, name)):
             errors.append(f"Не найден {name}")

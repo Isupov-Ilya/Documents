@@ -48,7 +48,8 @@ def apply_roles(
     known = {s.speaker_id for s in segments if s.speaker_id}
     rows = {r.speaker_id: r for r in proposed.speakers}
     if len(rows) != len(proposed.speakers) or set(rows) - known:
-        raise ValueError("Некорректные идентификаторы говорящих")
+        # Invalid model output supplies no trusted roles; require human confirmation.
+        rows = {}
     ids = {s.segment_id: s for s in segments}
     invalid_sources = set()
     for row in rows.values():
