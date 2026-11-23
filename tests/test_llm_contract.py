@@ -22,6 +22,7 @@ class ChatRecorder:
 def test_schema_is_explained_to_model_and_not_only_enforced_by_grammar():
     llm = LocalLLM.__new__(LocalLLM)
     llm.context = 8192
+    llm.sampling = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0}
     llm.model = ChatRecorder()
     result = llm("Определи роли", {"segments": []}, RoleResult)
     assert result.speakers == []
@@ -30,6 +31,7 @@ def test_schema_is_explained_to_model_and_not_only_enforced_by_grammar():
     assert "source_segment_ids" in request["messages"][0]["content"]
     assert json.loads(request["messages"][1]["content"]) == {"segments": []}
     assert request["response_format"]["schema"] == RoleResult.model_json_schema()
+    assert all(request[k] == v for k, v in llm.sampling.items())
 
 
 def test_schema_and_payload_are_included_in_context_budget():

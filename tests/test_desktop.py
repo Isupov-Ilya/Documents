@@ -27,7 +27,12 @@ def test_desktop_shows_history_setup_and_input_errors(qt_app, tmp_path, monkeypa
     qt_app.processEvents()
     assert w.tabs.count() == 3
     assert "не подготовлены" in w.setup_status.text()
-    w.start_button.click()
+    assert not w.start_button.isEnabled()
+    assert not w.export_button.isEnabled()
+    assert not w.log.isVisible()
+    w.setup_link.click()
+    assert w.tabs.currentWidget() is w.setup_page
+    w.start_job()
     assert errors and w.process is None
     w.grab().save(str(tmp_path / "desktop.png"))
     w.close()

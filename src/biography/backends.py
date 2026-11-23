@@ -105,6 +105,12 @@ class LocalLLM:
 
         path = local_path(settings.llm_model)
         self.context = settings.llm_context
+        self.sampling = {
+            "temperature": settings.llm_temperature,
+            "top_p": settings.llm_top_p,
+            "top_k": settings.llm_top_k,
+            "min_p": settings.llm_min_p,
+        }
         self.model = Llama(
             model_path=str(path),
             n_ctx=self.context,
@@ -144,7 +150,7 @@ class LocalLLM:
                 "type": "json_object",
                 "schema": response_schema,
             },
-            temperature=0,
+            **self.sampling,
             max_tokens=budget,
         )
         choice = response["choices"][0]

@@ -6,9 +6,10 @@ import uuid
 from pathlib import Path
 
 from PySide6.QtCore import QProcess, QSettings, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSpinBox,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -61,6 +63,53 @@ ROLES = {
     "third_party": "Третий участник",
     "unknown": "Не определён",
 }
+
+DESKTOP_STYLE = """
+QWidget { color: #203044; }
+QMainWindow, QDialog { background: #f4f6f9; }
+QLabel[heading="true"] { font-size: 27px; font-weight: 650; }
+QLabel[section="true"] { font-size: 15px; font-weight: 650; }
+QLabel[muted="true"] { color: #52637a; }
+QWidget#inputCard, QWidget#emptyResult, QWidget#setupCard {
+    background: #ffffff; border: 1px solid #dbe3ed; border-radius: 9px;
+}
+QTabWidget::pane { border: 1px solid #dbe3ed; border-radius: 7px; background: #f9fbfd; }
+QTabBar::tab { padding: 9px 20px; color: #52637a; }
+QTabBar::tab:selected { color: #173d73; font-weight: 600; border-bottom: 2px solid #2563aa; }
+QPushButton, QLineEdit, QComboBox, QSpinBox {
+    min-height: 26px; padding: 3px 9px; background: #ffffff;
+    border: 1px solid #bcc9d9; border-radius: 5px;
+}
+QPushButton:hover { background: #edf4fd; border-color: #7b9bc4; }
+QPushButton:focus, QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border: 2px solid #3675bd; }
+QPushButton[primary="true"] { color: #ffffff; background: #225d9f; border-color: #225d9f; font-weight: 600; }
+QPushButton[primary="true"]:hover { background: #194d89; }
+QPushButton:disabled, QPushButton[primary="true"]:disabled {
+    color: #66768b; background: #e9edf3; border-color: #d7e0eb;
+}
+QTableWidget, QPlainTextEdit {
+    background: #ffffff; alternate-background-color: #f4f8fc; border: 1px solid #dbe3ed;
+    selection-background-color: #d7e9ff; selection-color: #173d73;
+}
+QHeaderView::section { background: #edf2f8; padding: 6px 8px; border: none; border-bottom: 1px solid #dbe3ed; font-weight: 600; }
+QProgressBar { min-height: 7px; max-height: 7px; background: #e1e9f3; border: none; border-radius: 3px; }
+QProgressBar::chunk { background: #3477b8; border-radius: 3px; }
+"""
+
+
+def caption(text, emphasis="muted"):
+    label = QLabel(text)
+    label.setProperty(emphasis, True)
+    label.setWordWrap(True)
+    return label
+
+
+def configure_desktop(app):
+    app.setStyle("Fusion")
+    font = QFont(app.font())
+    font.setPointSize(10)
+    app.setFont(font)
+    app.setStyleSheet(DESKTOP_STYLE)
 
 
 def message(window, text):
@@ -326,6 +375,7 @@ class MainWindow(QMainWindow):
         self.transcript = None
         self.process = None
         self.preparation = None
+        self.models_ready = False
         self.cancel_requested = False
         self.player = QMediaPlayer(self)
         self.audio_output = QAudioOutput(self)
@@ -333,12 +383,12 @@ class MainWindow(QMainWindow):
         base = QWidget()
         self.setCentralWidget(base)
         layout = QVBoxLayout(base)
-        heading = QLabel("Биография из интервью")
-        heading.setStyleSheet("font-size:24px;font-weight:600")
-        layout.addWidget(heading)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(9)
+        layout.addWidget(caption("Биография из интервью", "heading"))
         layout.addWidget(
-            QLabel(
-                "Обработка аудио выполняется на этом компьютере. Готовые документы требуют проверки человеком."
+            caption(
+                "Аудио обрабатывается на этом компьютере. Проверьте документы перед использованием."
             )
         )
         self.tabs = QTabWidget()
@@ -353,6 +403,13 @@ class MainWindow(QMainWindow):
     def _build_process_tab(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(9)
+        card = QWidget()
+        card.setObjectName("inputCard")
+        inputs = QVBoxLayout(card)
+        inputs.setContentsMargins(12, 10, 12, 10)
+        inputs.addWidget(caption("Запись интервью", "section"))
         audio_row = QHBoxLayout()
         self.audio_path = QLineEdit()
         self.audio_path.setPlaceholderText("Аудиофайл M4A, MP3 или WAV")
@@ -361,14 +418,14 @@ class MainWindow(QMainWindow):
         choose = QPushButton("Выбрать аудио")
         choose.clicked.connect(self.choose_audio)
         audio_row.addWidget(choose)
-        sample = QPushButton("Синтетический пример")
+        sample = QPushButton("Учебный пример")
         sample.clicked.connect(
             lambda: self.audio_path.setText(
                 str(resource_path("examples/audio/interview.wav"))
             )
         )
         audio_row.addWidget(sample)
-        layout.addLayout(audio_row)
+        inputs.addLayout(audio_row)
         options = QHBoxLayout()
         options.addWidget(QLabel("Участников:"))
         self.speakers = QComboBox()
@@ -377,64 +434,112 @@ class MainWindow(QMainWindow):
         options.addWidget(QLabel("Шаблон:"))
         self.profile = QComboBox()
         options.addWidget(self.profile, 1)
-        import_template = QPushButton("Импорт DOCX-образца")
+        import_template = QPushButton("Импорт шаблона")
         import_template.clicked.connect(self.import_template)
         options.addWidget(import_template)
-        layout.addLayout(options)
+        inputs.addLayout(options)
         buttons = QHBoxLayout()
         self.start_button = QPushButton("Начать обработку")
         self.start_button.setObjectName("startButton")
+        self.start_button.setProperty("primary", True)
         self.start_button.clicked.connect(self.start_job)
         buttons.addWidget(self.start_button)
         self.cancel_button = QPushButton("Остановить")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self.cancel_job)
         buttons.addWidget(self.cancel_button)
-        self.roles_button = QPushButton("Уточнить говорящих")
-        self.roles_button.clicked.connect(self.review_roles)
-        buttons.addWidget(self.roles_button)
-        self.resume_button = QPushButton("Повторить анализ")
-        self.resume_button.clicked.connect(self.resume_job)
-        buttons.addWidget(self.resume_button)
-        layout.addLayout(buttons)
-        self.status = QLabel("Готово к выбору аудио")
-        self.status.setWordWrap(True)
-        layout.addWidget(self.status)
+        self.setup_link = QPushButton("Подготовить модели")
+        self.setup_link.clicked.connect(
+            lambda: self.tabs.setCurrentWidget(self.setup_page)
+        )
+        buttons.addWidget(self.setup_link)
+        buttons.addStretch()
+        inputs.addLayout(buttons)
+        self.status = caption("Выберите аудиозапись.")
+        inputs.addWidget(self.status)
         self.progress = QProgressBar()
-        layout.addWidget(self.progress)
+        self.progress.setTextVisible(False)
+        self.progress.hide()
+        inputs.addWidget(self.progress)
+        layout.addWidget(card)
+        title_row = QHBoxLayout()
+        title_row.addWidget(caption("Транскрипция и документы", "section"), 1)
+        self.files_button = QPushButton("Папка результатов")
+        self.files_button.clicked.connect(self.open_output)
+        title_row.addWidget(self.files_button)
+        layout.addLayout(title_row)
+        self.results = QStackedWidget()
+        blank = QWidget()
+        blank.setObjectName("emptyResult")
+        blank_layout = QVBoxLayout(blank)
+        notice = caption(
+            "Здесь появится транскрипция.\nВы сможете прослушать реплики, проверить сведения и сохранить три документа Word."
+        )
+        notice.setAlignment(Qt.AlignCenter)
+        blank_layout.addWidget(notice, 1)
+        self.results.addWidget(blank)
         self.transcript_table = QTableWidget(0, 3)
         self.transcript_table.setHorizontalHeaderLabels(["Время", "Говорящий", "Текст"])
         self.transcript_table.horizontalHeader().setSectionResizeMode(
             2, QHeaderView.Stretch
         )
         self.transcript_table.itemSelectionChanged.connect(self.seek_segment)
-        layout.addWidget(self.transcript_table, 1)
-        playback = QHBoxLayout()
-        play = QPushButton("Воспроизвести / пауза")
-        play.clicked.connect(self.play_pause)
-        playback.addWidget(play)
-        revise = QPushButton("Исправить транскрипцию")
-        revise.clicked.connect(self.edit_transcript)
-        playback.addWidget(revise)
-        facts = QPushButton("Проверить людей и факты")
-        facts.clicked.connect(self.review_facts)
-        playback.addWidget(facts)
+        self.transcript_table.setAlternatingRowColors(True)
+        self.transcript_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.transcript_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.transcript_table.verticalHeader().hide()
+        self.transcript_table.setColumnWidth(0, 67)
+        self.transcript_table.setColumnWidth(1, 186)
+        self.results.addWidget(self.transcript_table)
+        layout.addWidget(self.results, 1)
+        self.result_actions = QWidget()
+        playback = QHBoxLayout(self.result_actions)
+        playback.setContentsMargins(0, 0, 0, 0)
+        self.play_button = QPushButton("Воспроизвести")
+        self.play_button.clicked.connect(self.play_pause)
+        self.player.playbackStateChanged.connect(
+            lambda state: self.play_button.setText(
+                "Пауза" if state == QMediaPlayer.PlayingState else "Воспроизвести"
+            )
+        )
+        playback.addWidget(self.play_button)
+        self.revise_button = QPushButton("Исправить текст")
+        self.revise_button.clicked.connect(self.edit_transcript)
+        playback.addWidget(self.revise_button)
+        self.roles_button = QPushButton("Уточнить роли")
+        self.roles_button.clicked.connect(self.review_roles)
+        playback.addWidget(self.roles_button)
+        self.resume_button = QPushButton("Повторить анализ")
+        self.resume_button.clicked.connect(self.resume_job)
+        playback.addWidget(self.resume_button)
+        playback.addStretch()
+        self.facts_button = QPushButton("Проверить факты")
+        self.facts_button.clicked.connect(self.review_facts)
+        playback.addWidget(self.facts_button)
         self.export_button = QPushButton("Создать DOCX")
         self.export_button.clicked.connect(self.export_job)
         playback.addWidget(self.export_button)
-        files = QPushButton("Папка результатов")
-        files.clicked.connect(self.open_output)
-        playback.addWidget(files)
-        layout.addLayout(playback)
+        layout.addWidget(self.result_actions)
+        self.log_toggle = QPushButton("Журнал обработки")
+        self.log_toggle.setCheckable(True)
+        layout.addWidget(self.log_toggle, alignment=Qt.AlignLeft)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumHeight(110)
+        self.log.hide()
+        self.log_toggle.toggled.connect(self.log.setVisible)
         layout.addWidget(self.log)
         self.tabs.addTab(page, "Интервью")
+        self.audio_path.textChanged.connect(self.update_actions)
 
     def _build_history_tab(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.addWidget(caption("Сохранённые интервью", "section"))
+        layout.addWidget(
+            caption("Чтобы продолжить работу, дважды нажмите на строку интервью.")
+        )
         row = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setPlaceholderText("Поиск по ФИО, файлу и дате")
@@ -449,47 +554,77 @@ class MainWindow(QMainWindow):
             ["Дата", "ФИО / файл", "Состояние", "Папка"]
         )
         self.history.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.history.setAlternatingRowColors(True)
+        self.history.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.history.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.history.verticalHeader().hide()
         self.history.cellDoubleClicked.connect(self.open_history)
         layout.addWidget(self.history)
         self.tabs.addTab(page, "История")
 
     def _build_setup_tab(self):
         page = QWidget()
+        self.setup_page = page
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        card = QWidget()
+        card.setObjectName("setupCard")
+        layout.addWidget(card)
+        setup = QVBoxLayout(card)
+        setup.setContentsMargins(14, 12, 14, 12)
+        setup.addWidget(caption("Локальные модели", "section"))
+        setup.addWidget(
+            caption(
+                "Первая загрузка моделей занимает около 3 ГБ. После подготовки интернет для обработки интервью не нужен."
+            )
+        )
+        self.setup_status = caption("")
+        setup.addWidget(self.setup_status)
+        actions = QHBoxLayout()
+        self.prepare_button = QPushButton("Загрузить модели")
+        self.prepare_button.setProperty("primary", True)
+        self.prepare_button.clicked.connect(self.prepare_models)
+        actions.addWidget(self.prepare_button)
+        self.pause_button = QPushButton("Приостановить")
+        self.pause_button.clicked.connect(self.pause_preparation)
+        actions.addWidget(self.pause_button)
+        actions.addStretch()
+        setup.addLayout(actions)
+        self.setup_progress = QProgressBar()
+        self.setup_progress.setTextVisible(False)
+        setup.addWidget(self.setup_progress)
+        layout.addWidget(caption("Папка данных и моделей", "section"))
         self.folder_label = QLabel(str(self.root))
         self.folder_label.setWordWrap(True)
         layout.addWidget(self.folder_label)
-        choose = QPushButton("Выбрать папку данных и моделей")
+        choose = QPushButton("Выбрать папку")
         choose.clicked.connect(self.choose_root)
-        layout.addWidget(choose)
+        layout.addWidget(choose, alignment=Qt.AlignLeft)
         layout.addWidget(
-            QLabel(
-                "Первичная подготовка требует около 5,2 ГБ загрузки и не менее 12 ГБ свободного места.\nПосле подготовки обработка работает без интернета. Рекомендуется 16 ГБ RAM.\nПапку данных можно перенести на другой компьютер для полностью офлайн-установки моделей."
+            caption(
+                "При переносе приложения выберите папку с уже загруженными моделями."
             )
         )
-        self.setup_status = QLabel()
-        self.setup_status.setWordWrap(True)
-        layout.addWidget(self.setup_status)
-        self.prepare_button = QPushButton(
-            "Подготовить локальные модели — требуется интернет"
-        )
-        self.prepare_button.clicked.connect(self.prepare_models)
-        layout.addWidget(self.prepare_button)
-        pause = QPushButton("Приостановить подготовку")
-        pause.clicked.connect(self.pause_preparation)
-        layout.addWidget(pause)
-        self.setup_progress = QProgressBar()
-        layout.addWidget(self.setup_progress)
+        advanced = QPushButton("Дополнительные настройки")
+        advanced.setCheckable(True)
+        layout.addWidget(advanced, alignment=Qt.AlignLeft)
+        advanced_panel = QWidget()
+        advanced_layout = QHBoxLayout(advanced_panel)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
         custom = QPushButton("Выбрать другие локальные модели")
         custom.clicked.connect(self.custom_models)
-        layout.addWidget(custom)
+        advanced_layout.addWidget(custom)
         self.threads = QSpinBox()
         self.threads.setRange(1, max(1, os.cpu_count() or 1))
         self.threads.setValue(min(4, os.cpu_count() or 1))
-        layout.addWidget(QLabel("Потоков CPU (применяется к новым заданиям):"))
-        layout.addWidget(self.threads)
+        advanced_layout.addWidget(QLabel("Потоки CPU"))
+        advanced_layout.addWidget(self.threads)
+        advanced_layout.addStretch()
+        advanced_panel.hide()
+        advanced.toggled.connect(advanced_panel.setVisible)
+        layout.addWidget(advanced_panel)
         layout.addStretch()
-        self.tabs.addTab(page, "Подготовка и настройки")
+        self.tabs.addTab(page, "Настройки")
 
     def custom_models(self):
         if self.process or (self.preparation and self.preparation.isRunning()):
@@ -610,30 +745,77 @@ class MainWindow(QMainWindow):
         self.store = JobStore(self.root)
         self.preferences.setValue("data_root", name)
         self.folder_label.setText(name)
-        self.current_output = None
+        self.clear_result()
         self.refresh_profiles()
         self.refresh_history()
         self.refresh_setup()
 
     def refresh_setup(self):
         path = self.root / "settings.json"
+        self.models_ready = False
         if not path.exists():
             self.setup_status.setText(
                 "Модели не подготовлены. Можно выбрать существующую папку данных или выполнить загрузку."
             )
-            return
-        try:
-            from .cli import settings_at
-            from .diagnostics import check_environment
+        else:
+            try:
+                from .cli import settings_at
+                from .diagnostics import check_environment
 
-            result = check_environment(settings_at(path))
-            self.setup_status.setText(
-                "Локальные компоненты найдены. Можно обрабатывать аудио."
-                if not result["errors"]
-                else "\n".join(result["errors"])
+                result = check_environment(settings_at(path))
+                self.models_ready = not result["errors"]
+                self.setup_status.setText(
+                    "Модели готовы. Можно обрабатывать аудио без интернета."
+                    if self.models_ready
+                    else "\n".join(result["errors"])
+                )
+            except Exception as error:
+                self.setup_status.setText(str(error))
+        self.setup_progress.setVisible(False)
+        self.update_actions()
+
+    def update_actions(self):
+        busy = self.process is not None
+        preparing = self.preparation is not None and self.preparation.isRunning()
+        ready = self.models_ready and not busy and not preparing
+        folder = self.current_output
+        has_facts = folder is not None and (folder / "facts.json").is_file()
+        self.start_button.setEnabled(ready and bool(self.audio_path.text().strip()))
+        self.audio_path.setReadOnly(busy)
+        self.cancel_button.setVisible(busy)
+        self.cancel_button.setEnabled(busy)
+        self.setup_link.setVisible(not self.models_ready and not busy)
+        self.result_actions.setVisible(folder is not None and not busy)
+        self.files_button.setVisible(folder is not None and not busy)
+        self.prepare_button.setEnabled(not busy and not preparing)
+        self.pause_button.setVisible(preparing)
+        self.play_button.setEnabled(not busy and not self.player.source().isEmpty())
+        self.revise_button.setEnabled(not busy and self.transcript is not None)
+        self.roles_button.setEnabled(ready and self.transcript is not None)
+        self.resume_button.setEnabled(ready and folder is not None)
+        self.facts_button.setEnabled(not busy and has_facts)
+        self.export_button.setEnabled(not busy and has_facts)
+        self.files_button.setEnabled(
+            not busy and folder is not None and folder.is_dir()
+        )
+        self.log_toggle.setEnabled(busy or bool(self.log.toPlainText()))
+        self.log_toggle.setVisible(busy or bool(self.log.toPlainText()))
+        if not busy and folder is None:
+            self.status.setText(
+                "Сначала подготовьте модели в настройках."
+                if not self.models_ready
+                else "Выберите аудиозапись или откройте учебный пример."
             )
-        except Exception as error:
-            self.setup_status.setText(str(error))
+
+    def clear_result(self):
+        self.current_output = None
+        self.transcript = None
+        self.player.setSource(QUrl())
+        self.transcript_table.setRowCount(0)
+        self.results.setCurrentIndex(0)
+        self.progress.hide()
+        self.log_toggle.setChecked(False)
+        self.log.clear()
 
     def prepare_models(self):
         if self.process or (self.preparation and self.preparation.isRunning()):
@@ -648,7 +830,11 @@ class MainWindow(QMainWindow):
         )
         self.preparation.done.connect(lambda path: self.preparation_finished(None))
         self.preparation.failed.connect(self.preparation_finished)
+        self.preparation.finished.connect(self.update_actions)
+        self.setup_progress.setValue(0)
+        self.setup_progress.show()
         self.preparation.start()
+        self.update_actions()
 
     def pause_preparation(self):
         if self.preparation and self.preparation.isRunning():
@@ -666,7 +852,8 @@ class MainWindow(QMainWindow):
             self.setup_status.setText(
                 "Подготовка завершена. Для обработки интернет не нужен."
             )
-            self.setup_progress.setValue(100)
+            if self.models_ready:
+                self.tabs.setCurrentIndex(0)
 
     def refresh_profiles(self):
         self.profile.clear()
@@ -763,6 +950,7 @@ class MainWindow(QMainWindow):
             profile = self.profile.currentData()
             if profile:
                 command += ["--template-profile", profile]
+            self.clear_result()
             self.current_output = output
             self.store.add(job_id, source, output, "running")
             self.log.clear()
@@ -774,9 +962,9 @@ class MainWindow(QMainWindow):
             self.process.readyReadStandardError.connect(self.read_stderr)
             self.process.finished.connect(self.job_finished)
             self.process.errorOccurred.connect(self.process_error)
-            self.start_button.setEnabled(False)
-            self.cancel_button.setEnabled(True)
+            self.update_actions()
             self.progress.setRange(0, 0)
+            self.progress.show()
             self.status.setText("Обработка начата. Все этапы выполняются локально.")
             self.process.start()
             self.refresh_history()
@@ -835,10 +1023,9 @@ class MainWindow(QMainWindow):
         self.process = None
         if process:
             process.deleteLater()
-        self.start_button.setEnabled(True)
-        self.cancel_button.setEnabled(False)
         self.progress.setRange(0, 100)
         self.progress.setValue(100 if code == 0 else 0)
+        self.progress.hide()
         report_path = self.current_output / "quality_report.json"
         report = (
             json.loads(report_path.read_text(encoding="utf-8"))
@@ -876,6 +1063,8 @@ class MainWindow(QMainWindow):
         )
         self.refresh_history()
         self.load_project(self.current_output)
+        if state == "failed" and self.log.toPlainText():
+            self.log_toggle.setChecked(True)
         if state == "awaiting_roles":
             QTimer.singleShot(0, self.review_roles)
 
@@ -968,24 +1157,23 @@ class MainWindow(QMainWindow):
             metadata = self.current_output / "source.json"
             if metadata.exists():
                 wave = Path(json.loads(metadata.read_text(encoding="utf-8"))["path"])
-        if wave.exists():
-            self.player.setSource(QUrl.fromLocalFile(str(wave)))
+        self.player.setSource(
+            QUrl.fromLocalFile(str(wave)) if wave.is_file() else QUrl()
+        )
         report = self.current_output / "quality_report.json"
         data = {}
         if report.exists():
             data = json.loads(report.read_text(encoding="utf-8"))
             self.status.setText(
                 STATUSES.get(data.get("status"), data.get("status", ""))
+                + ((". " + data["error"]) if data.get("error") else "")
             )
-        if report.exists() and data.get("status") == "completed":
-            self.progress.setRange(0, 100)
-            self.progress.setValue(100)
+        else:
+            self.status.setText("Открыто сохранённое интервью.")
+        self.progress.hide()
+        self.results.setCurrentIndex(1 if self.transcript else 0)
         self.transcript_table.resizeRowsToContents()
-        self.roles_button.setEnabled(bool(self.transcript))
-        self.resume_button.setEnabled(
-            bool(self.transcript) or (self.current_output / "source.json").is_file()
-        )
-        self.export_button.setEnabled((self.current_output / "facts.json").exists())
+        self.update_actions()
 
     def seek_segment(self):
         row = self.transcript_table.currentRow()
@@ -1159,7 +1347,7 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication.instance() or QApplication([])
-    app.setStyle("Fusion")
+    configure_desktop(app)
     window = MainWindow()
     window.show()
     return app.exec()
@@ -1169,9 +1357,18 @@ def smoke_gui(root, project, output):
     from PySide6.QtTest import QTest
 
     app = QApplication.instance() or QApplication([])
-    app.setStyle("Fusion")
+    configure_desktop(app)
     window = MainWindow(root)
     window.show()
+    app.processEvents()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if not window.grab().save(str(output.with_name("before-processing.png"))):
+        raise ValueError("Cannot save the initial Windows window")
+    window.tabs.setCurrentWidget(window.setup_page)
+    app.processEvents()
+    if not window.grab().save(str(output.with_name("model-settings.png"))):
+        raise ValueError("Cannot save the Windows settings window")
+    window.tabs.setCurrentIndex(0)
     window.load_project(project)
     window._settings_for_job("native-gui-preflight")
     for _ in range(40):
@@ -1183,7 +1380,8 @@ def smoke_gui(root, project, output):
         raise ValueError("Frozen GUI did not load transcript")
     if window.player.duration() <= 0:
         raise ValueError("Frozen GUI did not decode local audio")
-    output.parent.mkdir(parents=True, exist_ok=True)
+    if not window.play_button.isEnabled() or not window.export_button.isEnabled():
+        raise ValueError("Frozen GUI did not enable playback and export")
     if not window.grab().save(str(output)):
         raise ValueError("Cannot save native GUI image")
     write_json(

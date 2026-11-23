@@ -147,6 +147,10 @@ class Settings(Record):
     compute_type: str = "int8"
     llm_gpu_layers: int = Field(default=0, ge=-1)
     llm_context: int = Field(default=8192, ge=2048)
+    llm_temperature: float = Field(default=0, ge=0, le=2)
+    llm_top_p: float = Field(default=0.95, gt=0, le=1)
+    llm_top_k: int = Field(default=40, ge=0)
+    llm_min_p: float = Field(default=0.05, ge=0, le=1)
     threads: int = Field(default=4, ge=1)
     min_speakers: int = Field(default=2, ge=2, le=3)
     max_speakers: int = Field(default=3, ge=2, le=3)
