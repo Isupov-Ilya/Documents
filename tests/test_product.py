@@ -583,3 +583,114 @@ def test_uncle_or_someone_elses_surname_is_not_a_first_person_introduction():
             Transcript(source_sha256="test", duration_seconds=1, segments=[segment]),
         )
         assert sections["full_name"] == "Сведения не представлены"
+
+
+def test_model_quarantine_retains_valid_claim_and_raw_rejected_candidate():
+    from biography.intelligence import extract
+
+    data = cited_fact()
+    bad = data.facts[0].model_copy(deep=True)
+    bad.fact_id = "invented"
+    bad.value = "Придуманный город"
+    bad.evidence[0].quote = "Иван никогда не был в Москве"
+    data.facts.append(bad)
+    checkpoints, rejected = [], []
+    result = extract(
+        split_segments(),
+        lambda *args: data,
+        checkpoint=lambda i, raw: checkpoints.append(raw.model_copy(deep=True)),
+        rejections=lambda i, records: rejected.extend(records),
+    )
+    validate_sources(result, split_segments())
+    assert len(result.facts) == 1 and result.facts[0].value == "Москва"
+    assert result.facts[0].requires_review
+    assert len(checkpoints[0].facts) == 2
+    assert checkpoints[0].facts[1].evidence[0].quote == "Иван никогда не был в Москве"
+    assert any(item["candidate_id"] == "invented" for item in rejected)
+    assert any("Отклонено" in item for item in result.uncertainties)
+
+
+def test_model_multi_source_claim_is_rejected_as_a_whole_if_one_quote_is_invented():
+    from biography.provenance import ground_model_part
+    from biography.schemas import Evidence
+
+    part = cited_fact()
+    part.facts[0].evidence[0].quote = "Иван"
+    part.facts[0].evidence.append(Evidence(segment_id="missing", quote="not stated"))
+    result, rejected = ground_model_part(
+        part, FactSet(people=[], facts=[]), split_segments()
+    )
+    assert not result.facts and rejected
+    # Loading/exporting invalid saved data must still fail strict validation.
+    with pytest.raises(ValueError, match="выдуманную цитату"):
+        validate_sources(part, split_segments())
+
+
+def test_quarantine_removes_ungrounded_person_dependencies_and_orphaned_conflicts():
+    from biography.provenance import ground_model_part
+    from biography.schemas import Conflict, Relation
+
+    part = cited_fact()
+    other = part.people[0].model_copy(deep=True)
+    other.person_id = "unknown"
+    other.mentions[0].text = "Придуманное имя"
+    part.people.append(other)
+    dependent = part.facts[0].model_copy(deep=True)
+    dependent.fact_id = "dependent"
+    dependent.subject_person_id = "unknown"
+    part.facts.append(dependent)
+    part.relations = [
+        Relation(
+            subject_person_id="colleague",
+            object_person_id="unknown",
+            relationship="brother",
+            evidence=dependent.evidence,
+        )
+    ]
+    part.conflicts = [
+        Conflict(
+            conflict_group_id="conflict",
+            fact_ids=["f1", "dependent"],
+            explanation="model suggestion",
+        )
+    ]
+    part.facts[0].has_conflict = True
+    part.facts[0].conflict_group_id = "conflict"
+    result, rejected = ground_model_part(
+        part, FactSet(people=[], facts=[]), split_segments()
+    )
+    validate_sources(result, split_segments())
+    assert len(result.people) == 1 and len(result.facts) == 1
+    assert not result.relations and not result.conflicts
+    assert not result.facts[0].has_conflict
+    assert {item["kind"] for item in rejected} == {
+        "лицо",
+        "сведение",
+        "связь",
+        "противоречие",
+    }
+
+
+def test_literal_boundary_repair_is_preserved_before_model_quarantine():
+    from biography.provenance import ground_model_part
+
+    result, rejected = ground_model_part(
+        cited_fact(), FactSet(people=[], facts=[]), split_segments()
+    )
+    validate_sources(result, split_segments())
+    assert len(result.facts) == 1 and not rejected
+    assert [e.segment_id for e in result.facts[0].evidence] == ["s1", "s2"]
+
+
+def test_duplicate_model_person_ids_cannot_redirect_claims_to_another_person():
+    from biography.provenance import ground_model_part
+
+    part = cited_fact()
+    other = part.people[0].model_copy(deep=True)
+    other.name = "Другой Иван"
+    part.people.append(other)
+    result, rejected = ground_model_part(
+        part, FactSet(people=[], facts=[]), split_segments()
+    )
+    assert not result.people and not result.facts
+    assert any(item["reason"] == "повторяющийся неоднозначный ID" for item in rejected)

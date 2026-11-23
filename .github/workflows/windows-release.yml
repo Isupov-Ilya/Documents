@@ -64,6 +64,19 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path dist/validation -Force | Out-Null
           python -m pip freeze | Out-File dist/validation/windows-packages.txt -Encoding utf8
+      - name: Preserve actual synthetic project evidence
+        if: always()
+        run: |
+          $data=Join-Path $env:RUNNER_TEMP 'Данные офлайн проверки'
+          $evidence=Join-Path $PWD 'dist/validation/projects'
+          New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+          if (Test-Path $data) {
+            Get-ChildItem -LiteralPath $data -Filter quality_report.json -Recurse | ForEach-Object {
+              $target=Join-Path $evidence $_.Directory.Name
+              New-Item -ItemType Directory -Path $target -Force | Out-Null
+              Get-ChildItem -LiteralPath $_.Directory.FullName -File | Where-Object { $_.Extension -in @('.json','.docx') } | Copy-Item -Destination $target
+            }
+          }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

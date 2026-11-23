@@ -327,8 +327,9 @@ def _payload(merged, batch, namespace):
     }
 
 
-def extract(segments, llm, limit=5000, checkpoint=None, trace=None):
+def extract(segments, llm, limit=5000, checkpoint=None, trace=None, rejections=None):
     from .errors import ContextBudgetError
+    from .provenance import ground_model_part
 
     merged = FactSet(people=[], facts=[])
     sequence = 0
@@ -355,6 +356,9 @@ def extract(segments, llm, limit=5000, checkpoint=None, trace=None):
             checkpoint(sequence, part)
         if trace:
             trace(sequence, [s.segment_id for s in batch])
+        part, rejected = ground_model_part(part, merged, segments)
+        if rejections:
+            rejections(sequence, rejected)
         merged = _merge_part(merged, part, f"{sequence:04d}", segments)
         sequence += 1
 

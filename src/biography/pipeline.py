@@ -1,3 +1,4 @@
+import json
 import platform
 import threading
 import time
@@ -154,6 +155,13 @@ def analyze(
                 run.output / f"facts_input_{index:04d}.json",
                 {"source_segment_ids": ids},
             ),
+            rejections=lambda index, items: write_json(
+                run.output / f"facts_rejections_{index:04d}.json", items
+            ),
+        )
+        run.report["rejected_model_candidates"] = sum(
+            len(json.loads(path.read_text(encoding="utf-8")))
+            for path in run.output.glob("facts_rejections_*.json")
         )
         write_json(run.output / "facts.json", facts)
     run.report.update(
