@@ -6,10 +6,30 @@ on:
         description: Tested installer release tag
         required: true
         type: string
+      build_run:
+        description: Wait for this release build before starting (optional run ID)
+        required: false
+        type: string
 permissions:
   contents: write
+  actions: read
 jobs:
+  release_ready:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: ${{ inputs.build_run != '' }}
+    steps:
+      - name: Wait for the short Windows validation and release upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh run watch "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --interval 40 --exit-status
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName
   hour:
+    needs: [release_ready]
+    if: ${{ !cancelled() && (needs.release_ready.result == 'success' || needs.release_ready.result == 'skipped') }}
     runs-on: windows-2022
     timeout-minutes: 360
     env:
@@ -28,7 +48,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release download $env:RELEASE_TAG --pattern Biography-Setup-Windows-x64.exe --dir downloaded
+        run: |
+          gh release download $env:RELEASE_TAG --pattern Biography-Setup-Windows-x64.exe --pattern SHA256SUMS.txt --dir downloaded
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the tested installer' }
+          $sum=Get-Content downloaded/SHA256SUMS.txt | Where-Object { $_ -match '  Biography-Setup-Windows-x64\.exe$' }
+          $actual=(Get-FileHash downloaded/Biography-Setup-Windows-x64.exe -Algorithm SHA256).Hash
+          if (!$sum -or $actual -ine ($sum -split ' +')[0]) { throw 'Installer checksum mismatch' }
       - name: Install and create the test profile
         run: |
           $install=Join-Path $env:RUNNER_TEMP 'Биография часовая проверка'
