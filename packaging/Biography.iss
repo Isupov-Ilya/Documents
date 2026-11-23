@@ -1,4 +1,4 @@
-﻿#define AppVersion "0.2.2"
+﻿#define AppVersion "0.2.3"
 [Setup]
 AppId={{7E91C7A2-4189-4DA6-A7C0-D4BB07476BD3}
 AppName=Биография

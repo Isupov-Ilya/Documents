@@ -90,7 +90,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag='v0.2.2-windows-${{ github.run_number }}'
+          $tag='v0.2.3-windows-${{ github.run_number }}'
           Compress-Archive -Path dist/validation/* -DestinationPath dist/Windows-validation.zip
           $files=Get-ChildItem dist/installer/*,dist/Windows-validation.zip
           $hashes=$files | Get-FileHash -Algorithm SHA256 | ForEach-Object { $_.Hash.ToLower()+'  '+(Split-Path $_.Path -Leaf) }

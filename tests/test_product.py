@@ -818,3 +818,42 @@ def test_unrelated_quote_cannot_cover_a_year_that_is_absent_from_the_fact_itself
     part.facts[0].value = "завод Вектор"
     part.facts[0].evidence[0].quote = sources[1].text_raw
     assert uncovered_sources(sources[1:], part) == sources[1:]
+
+
+def test_reversed_family_role_is_corrected_by_the_literal_name_in_the_quote():
+    from biography.documents import build_sections
+    from biography.provenance import ground_model_part
+
+    transcript = Transcript.model_validate_json(
+        (FIXTURES / "transcript.json").read_text(encoding="utf-8")
+    )
+    facts = FactSet.model_validate_json(
+        (FIXTURES / "facts_expected.json").read_text(encoding="utf-8")
+    )
+    relation = facts.relations[0]
+    relation.subject_person_id, relation.object_person_id = (
+        relation.object_person_id,
+        relation.subject_person_id,
+    )
+    sections, _ = build_sections(facts, transcript)
+    assert "Первое лицо: Иван Петрович Волков" in sections["family"]
+    assert "Роль первого лица: отец" in sections["family"]
+    repaired, _ = ground_model_part(
+        facts, FactSet(people=[], facts=[]), transcript.segments
+    )
+    assert repaired.relations[0].subject_person_id == "father"
+
+
+def test_unverified_direction_of_family_role_is_not_asserted_in_the_biography():
+    from biography.documents import build_sections
+
+    transcript = Transcript.model_validate_json(
+        (FIXTURES / "transcript.json").read_text(encoding="utf-8")
+    )
+    facts = FactSet.model_validate_json(
+        (FIXTURES / "facts_expected.json").read_text(encoding="utf-8")
+    )
+    facts.relations[0].evidence[0].quote = "Мой отец"
+    sections, _ = build_sections(facts, transcript)
+    assert "К кому относится роль, уточните по цитате" in sections["family"]
+    assert "Роль первого лица:" not in sections["family"]

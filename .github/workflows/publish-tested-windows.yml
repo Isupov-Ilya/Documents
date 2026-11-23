@@ -48,4 +48,4 @@ jobs:
           cp build-output/validation/native-windows-gui.png release/Interface.png
           (cd build-output/validation && zip -q -r ../../release/Windows-validation.zip .)
           (cd release && sha256sum Biography-Setup-Windows-x64.exe Windows-validation.zip Interface.png > SHA256SUMS.txt)
-          gh release create "$RELEASE_TAG" release/Biography-Setup-Windows-x64.exe release/Windows-validation.zip release/Interface.png release/SHA256SUMS.txt --verify-tag --prerelease --title 'Биография 0.2.2 для Windows' --notes-file packaging/RELEASE-NOTES.ru.md
+          gh release create "$RELEASE_TAG" release/Biography-Setup-Windows-x64.exe release/Windows-validation.zip release/Interface.png release/SHA256SUMS.txt --verify-tag --prerelease --title "Биография для Windows ($RELEASE_TAG)" --notes-file packaging/RELEASE-NOTES.ru.md

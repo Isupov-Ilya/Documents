@@ -1,8 +1,45 @@
 """Resolve literal citations spanning adjacent ASR fragments, without inventing text."""
 
+import re
 from collections import Counter
 
 from .schemas import Evidence
+
+RELATION_LABELS = {
+    "father": "отец",
+    "mother": "мать",
+    "brother": "брат",
+    "sister": "сестра",
+    "spouse": "супруг(а)",
+    "child": "ребёнок",
+    "colleague": "коллега",
+    "friend": "друг",
+}
+
+
+def literal_role_bearer(relation, people):
+    """Resolve direction only when an exact quote directly names the role bearer."""
+    role = RELATION_LABELS.get(
+        relation.relationship.casefold(), relation.relationship.casefold()
+    )
+    role = re.escape(role)
+    candidates = set()
+    for person_id in (relation.subject_person_id, relation.object_person_id):
+        person = people[person_id]
+        if not person.name:
+            continue
+        name = re.escape(person.name.strip())
+        if any(
+            re.search(
+                rf"^\s*(?:(?:мой|моя|наш|наша|его|е[её])\s+)?{role}\s+{name}(?!\w)"
+                rf"|^\s*{name}\s*[,—–-]\s*(?:(?:мой|моя|наш|наша)\s+)?{role}(?!\w)",
+                item.quote,
+                flags=re.I,
+            )
+            for item in relation.evidence
+        ):
+            candidates.add(person_id)
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def ground_model_part(part, known, segments, presented=None):
@@ -111,6 +148,7 @@ def ground_model_part(part, known, segments, presented=None):
             people.append(person)
     result.people = people
     person_ids = {p.person_id for p in known.people + people}
+    people_by_id = {p.person_id: p for p in known.people + people}
 
     facts = []
     ambiguous_facts = {
@@ -159,6 +197,11 @@ def ground_model_part(part, known, segments, presented=None):
             )
             continue
         relation.requires_review = True
+        if literal_role_bearer(relation, people_by_id) == relation.object_person_id:
+            relation.subject_person_id, relation.object_person_id = (
+                relation.object_person_id,
+                relation.subject_person_id,
+            )
         relations.append(relation)
     result.relations = relations
 

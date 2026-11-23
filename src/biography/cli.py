@@ -25,7 +25,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Локальный исследовательский прототип интервью → факты"
     )
-    parser.add_argument("--version", action="version", version="Biography 0.2.2")
+    parser.add_argument("--version", action="version", version="Biography 0.2.3")
     sub = parser.add_subparsers(dest="command", required=True)
     for command in ("run", "analyze"):
         p = sub.add_parser(

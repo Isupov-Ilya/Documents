@@ -8,7 +8,7 @@ from docx.enum.text import WD_COLOR_INDEX
 from docx.shared import Pt
 
 from .io import write_json
-from .provenance import semantic_warnings
+from .provenance import RELATION_LABELS, literal_role_bearer, semantic_warnings
 from .schemas import Role
 from .templates import render_profile
 
@@ -25,8 +25,12 @@ LABELS = {
     "place_of_birth": "Место рождения",
     "birth": "Рождение",
     "education": "Образование",
+    "education_end_year": "Год окончания обучения",
     "employment": "Работа",
+    "employment_start": "Начало работы",
+    "employment_company": "Место работы",
     "employment_end": "Завершение работы",
+    "employment_exit": "Завершение работы",
     "relocation": "Переезд",
     "place_of_relocation": "Место переезда",
     "date_of_relocation": "Дата переезда",
@@ -187,20 +191,20 @@ def build_sections(facts, transcript):
                     else "[ТРЕБУЕТ УТОЧНЕНИЯ] "
                 ) + line
         groups[category].append(line)
-    relation_labels = {
-        "father": "отец",
-        "mother": "мать",
-        "brother": "брат",
-        "sister": "сестра",
-        "spouse": "супруг(а)",
-        "child": "ребёнок",
-        "colleague": "коллега",
-        "friend": "друг",
-    }
     for relation in facts.relations:
         first = people[relation.subject_person_id].name or "Неустановленное лицо"
         second = people[relation.object_person_id].name or "Неустановленное лицо"
-        text = f"Связь между лицами. Первое лицо: {first}. Второе лицо: {second}. Роль первого лица: {relation_labels.get(relation.relationship, relation.relationship)}."
+        role = RELATION_LABELS.get(
+            relation.relationship.casefold(), relation.relationship
+        )
+        bearer = literal_role_bearer(relation, people)
+        if bearer == relation.object_person_id:
+            first, second = second, first
+        if bearer or not relation.requires_review:
+            text = f"Связь между лицами. Первое лицо: {first}. Второе лицо: {second}. Роль первого лица: {role}."
+        else:
+            quotes = " / ".join(f"«{e.quote}»" for e in relation.evidence)
+            text = f"Связь «{role}» между лицами {first} и {second}. К кому относится роль, уточните по цитате: {quotes}"
         if relation.requires_review:
             text = "[ПРОВЕРИТЬ ПО АУДИО] " + text
         groups["family"].append(text)
