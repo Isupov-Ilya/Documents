@@ -466,3 +466,78 @@ def test_unfounded_new_mention_does_not_replace_known_identity_or_pass_as_a_new_
     update.people[0].person_id = "new-person"
     with pytest.raises(ValueError, match="Упоминание человека"):
         _merge_part(known, update, "invalid", split_segments())
+
+
+def test_first_mentioned_parent_name_does_not_become_the_respondent():
+    from biography.documents import build_sections
+    from biography.schemas import Role
+
+    segments = [
+        Segment(
+            segment_id="father",
+            start_ms=0,
+            end_ms=1000,
+            text_raw="Мой отец Пётр.",
+            speaker_role=Role.respondent,
+        ),
+        Segment(
+            segment_id="self",
+            start_ms=1000,
+            end_ms=2000,
+            text_raw="Меня зовут Иван.",
+            speaker_role=Role.respondent,
+        ),
+    ]
+    data = FactSet.model_validate(
+        {
+            "people": [
+                {
+                    "person_id": "father",
+                    "name": "Пётр",
+                    "identity_status": "explicit",
+                    "mentions": [{"segment_id": "father", "text": "Пётр"}],
+                },
+                {
+                    "person_id": "self",
+                    "name": "Иван",
+                    "identity_status": "explicit",
+                    "mentions": [{"segment_id": "self", "text": "Иван"}],
+                },
+            ],
+            "facts": [
+                {
+                    "fact_id": pid,
+                    "subject_person_id": pid,
+                    "predicate": "full_name",
+                    "value": name,
+                    "evidence": [{"segment_id": pid, "quote": quote}],
+                    "evidence_type": "reported",
+                    "certainty": "explicit",
+                }
+                for pid, name, quote in [
+                    ("father", "Пётр", "Мой отец Пётр."),
+                    ("self", "Иван", "Меня зовут Иван."),
+                ]
+            ],
+        }
+    )
+    transcript = Transcript(source_sha256="test", duration_seconds=2, segments=segments)
+    sections, _ = build_sections(data, transcript)
+    assert sections["full_name"] == "Иван"
+    data.facts = data.facts[:1]
+    data.people = data.people[:1]
+    sections, _ = build_sections(data, transcript)
+    assert sections["full_name"] == "Сведения не представлены"
+
+
+def test_relationships_are_present_in_the_biography_not_only_in_json(tmp_path):
+    transcript = Transcript.model_validate_json(
+        (FIXTURES / "transcript.json").read_text(encoding="utf-8")
+    )
+    facts = FactSet.model_validate_json(
+        (FIXTURES / "facts_expected.json").read_text(encoding="utf-8")
+    )
+    result = export_documents(transcript, facts, tmp_path)
+    text = "\n".join(p.text for p in Document(result["biography"]).paragraphs)
+    assert "Роль первого лица: отец" in text
+    assert "Основания связей между людьми" in text

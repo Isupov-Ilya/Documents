@@ -85,30 +85,56 @@ def _category(predicate):
 def build_sections(facts, transcript):
     segments = {s.segment_id: s for s in transcript.segments}
     people = {p.person_id: p for p in facts.people}
-    primary = next(
-        (
-            p.person_id
-            for p in facts.people
-            if p.relationship_to_respondent in {"self", "respondent", "респондент"}
-        ),
-        None,
-    )
+    declared = [
+        p.person_id
+        for p in facts.people
+        if p.relationship_to_respondent in {"self", "respondent", "респондент"}
+    ]
+    primary = declared[0] if len(declared) == 1 else None
+    inferred = False
+    if primary is None and not declared:
+        candidates = {}
+        ordered = sorted(transcript.segments, key=lambda s: s.start_ms)
+        indices = {s.segment_id: i for i, s in enumerate(ordered)}
+        for fact in facts.facts:
+            if fact.predicate != "full_name" or fact.subject_person_id not in people:
+                continue
+            name_pattern = re.escape(fact.value)
+            own_name = r"(?:меня\s+зовут|моя\s+фамилия|я[\s,—–:-]+)\s*" + name_pattern
+            for e in fact.evidence:
+                segment = segments[e.segment_id]
+                if segment.speaker_role != Role.respondent:
+                    continue
+                text = segment.text_raw
+                direct = bool(re.search(own_name, text, flags=re.I))
+                index = indices[e.segment_id]
+                if not direct and index:
+                    previous = ordered[index - 1]
+                    if (
+                        previous.speaker_id in {None, segment.speaker_id}
+                        and 0 <= segment.start_ms - previous.end_ms <= 350
+                    ):
+                        text = previous.text_raw + " " + text
+                if direct or re.search(own_name, text, flags=re.I):
+                    candidates[fact.subject_person_id] = not direct
+        if len(candidates) == 1:
+            primary, inferred = next(iter(candidates.items()))
     name = next(
-        (p.name for p in facts.people if p.person_id == primary and p.name),
-        "Сведения не представлены",
+        (p.name for p in facts.people if p.person_id == primary and p.name), None
     )
-    for fact in facts.facts:
-        if (
-            fact.predicate == "full_name"
-            and fact.subject_person_id in people
-            and any(
-                segments[e.segment_id].speaker_role == Role.respondent
-                for e in fact.evidence
-            )
-        ):
-            primary = fact.subject_person_id
-            name = people[primary].name or fact.value
-            break
+    if not name:
+        name = next(
+            (
+                f.value
+                for f in facts.facts
+                if f.subject_person_id == primary
+                and primary is not None
+                and f.predicate == "full_name"
+            ),
+            "Сведения не представлены",
+        )
+    if inferred:
+        name += " [Принадлежность респонденту требует проверки]"
     issues = {x["fact_id"]: x["reason"] for x in semantic_warnings(facts)}
     groups = {k: [] for k in TITLES}
 
@@ -159,6 +185,23 @@ def build_sections(facts, transcript):
                     else "[ТРЕБУЕТ УТОЧНЕНИЯ] "
                 ) + line
         groups[category].append(line)
+    relation_labels = {
+        "father": "отец",
+        "mother": "мать",
+        "brother": "брат",
+        "sister": "сестра",
+        "spouse": "супруг(а)",
+        "child": "ребёнок",
+        "colleague": "коллега",
+        "friend": "друг",
+    }
+    for relation in facts.relations:
+        first = people[relation.subject_person_id].name or "Неустановленное лицо"
+        second = people[relation.object_person_id].name or "Неустановленное лицо"
+        text = f"Связь между лицами. Первое лицо: {first}. Второе лицо: {second}. Роль первого лица: {relation_labels.get(relation.relationship, relation.relationship)}."
+        if relation.requires_review:
+            text = "[ПРОВЕРИТЬ ПО АУДИО] " + text
+        groups["family"].append(text)
     sections = {
         key: "\n".join(values) if values else "Сведения не представлены"
         for key, values in groups.items()
@@ -265,6 +308,12 @@ def export_documents(transcript, facts, folder: Path, profile=None):
             d.add_paragraph(
                 f"{s.start_ms // 60000:02d}:{s.start_ms // 1000 % 60:02d} — «{e.quote}»"
             )
+    if facts.relations:
+        d.add_heading("Основания связей между людьми", 2)
+        for relation in facts.relations:
+            for e in relation.evidence:
+                covered.add(e.segment_id)
+                d.add_paragraph("«" + e.quote + "»")
     # Every remaining answer stays visible; a coverage statistic is not semantic recall.
     from .coverage import uncovered_sources
 

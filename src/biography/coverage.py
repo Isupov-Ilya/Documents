@@ -48,6 +48,9 @@ def uncovered_sources(segments, data, respondents_only=False):
     for fact in data.facts:
         for e in fact.evidence:
             evidence.setdefault(e.segment_id, []).append(e.quote)
+    for relation in data.relations:
+        for e in relation.evidence:
+            evidence.setdefault(e.segment_id, []).append(e.quote)
     for person in data.people:
         for m in person.mentions:
             evidence.setdefault(m.segment_id, []).append(m.text)
