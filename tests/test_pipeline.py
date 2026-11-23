@@ -100,6 +100,10 @@ def test_real_audio_pipeline_with_explicit_test_adapters(tmp_path, monkeypatch):
             pass
 
         def __call__(self, system, payload, schema):
+            if schema is not RoleResult and payload.get("known_facts"):
+                return schema(
+                    people=[], facts=[]
+                )  # Scripted oracle has no additional facts.
             file = "roles.json" if schema is RoleResult else "facts_expected.json"
             return schema.model_validate_json(
                 (FIXTURES / file).read_text(encoding="utf-8")
@@ -134,11 +138,17 @@ def test_real_audio_pipeline_with_explicit_test_adapters(tmp_path, monkeypatch):
             "SPEAKER_01": Role.respondent,
             "SPEAKER_02": Role.third_party,
         },
+        resume_project=tmp_path / "output",
     )
     assert (
         json.loads((out / "quality_report.json").read_text(encoding="utf-8"))["status"]
         == "completed"
     )
+    assert set(
+        json.loads((out / "quality_report.json").read_text(encoding="utf-8"))[
+            "reused_stages"
+        ]
+    ) == {"audio_preparation", "diarization", "transcription"}
     assert source.read_bytes() == original
     assert (
         len(json.loads((out / "facts.json").read_text(encoding="utf-8"))["facts"]) == 8

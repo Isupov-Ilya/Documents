@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Exe,[Parameter(Mandatory=$true)][string]$DataDirectory)
+param([Parameter(Mandatory=$true)][string]$Exe,[Parameter(Mandatory=$true)][string]$DataDirectory,[int]$DurationSeconds=0)
 $ErrorActionPreference='Stop'
 $Exe=(Resolve-Path $Exe).Path
 $Python=(Get-Command python).Source
@@ -21,7 +21,11 @@ try {
     $value.num_clusters=2
     [IO.File]::WriteAllText($diarization,($value|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     $audio=Join-Path $DataDirectory 'Запись с телефона.m4a'
-    & (Join-Path (Split-Path $Exe) 'tools/ffmpeg.exe') -nostdin -v error -y -i (Join-Path $Root 'examples/audio/interview.wav') -c:a aac -b:a 96k $audio
+    $ffmpeg=Join-Path (Split-Path $Exe) 'tools/ffmpeg.exe'
+    $reference=Join-Path $Root 'examples/audio/interview.wav'
+    if ($DurationSeconds -gt 0) {
+        & $ffmpeg -nostdin -v error -y -stream_loop -1 -i $reference -t $DurationSeconds -c:a aac -b:a 96k $audio
+    } else { & $ffmpeg -nostdin -v error -y -i $reference -c:a aac -b:a 96k $audio }
     if ($LASTEXITCODE -ne 0) { throw 'Cannot create M4A test recording' }
     $before=(Get-FileHash $audio -Algorithm SHA256).Hash
     & $Exe network-probe
@@ -53,7 +57,7 @@ try {
     if ($exitCode -ne 0) { throw "Actual offline pipeline failed: $exitCode" }
     if ((Get-FileHash $audio -Algorithm SHA256).Hash -ne $before) { throw 'Source audio was modified' }
     $env:PATH=$originalPath
-    & $Python (Join-Path $PSScriptRoot 'validate_windows_output.py') --project $project --report (Join-Path $ReportDirectory 'offline-test.json')
+    & $Python (Join-Path $PSScriptRoot 'validate_windows_output.py') --project $project --report (Join-Path $ReportDirectory 'offline-test.json') --minimum-duration $DurationSeconds
     if ($LASTEXITCODE -ne 0) { throw 'Frozen output validation failed' }
     $env:QT_QPA_PLATFORM='windows'
     $env:PATH="$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem"

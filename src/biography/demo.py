@@ -18,6 +18,10 @@ def run_demo(fixtures: Path, output: Path):
     )
 
     def scripted(system, payload, schema):
+        if schema is FactSet and payload.get("known_facts"):
+            return FactSet(
+                people=[], facts=[]
+            )  # Oracle fixture already contains its full expected facts.
         return (roles if schema is RoleResult else facts).model_copy(deep=True)
 
     with Run(output, "synthetic_fixture_no_models") as run:

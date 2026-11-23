@@ -278,3 +278,114 @@ def test_many_chunks_keep_ids_unique_and_do_not_expand_context_without_bound():
     assert len({f.subject_person_id for f in result.facts}) == 80
     assert all(not f.human_reviewed for f in result.facts)
     assert max(sizes) < 20000
+
+
+def test_conflicting_birth_years_are_not_silently_replaced_by_a_range():
+    from biography.claims import preserve_competing_claims
+
+    data = cited_fact()
+    f = data.facts[0]
+    f.predicate = "birth_year"
+    f.value = "1950-1951"
+    f.certainty = "approximate"
+    from biography.schemas import Evidence
+
+    f.evidence = [
+        Evidence(segment_id="s1", quote="Отец родился примерно в 1950 году."),
+        Evidence(segment_id="s2", quote="Возможно, отец родился в 1951 году."),
+    ]
+    result = preserve_competing_claims(data)
+    assert {f.value for f in result.facts} == {"1950", "1951"}
+    assert len(result.conflicts) == 1
+    assert all(
+        f.has_conflict and f.requires_review and f.date.approximate
+        for f in result.facts
+    )
+    assert data.facts[0].value == "1950-1951"
+
+
+def test_checkpoint_reuse_rejects_changed_or_moved_artifacts(tmp_path):
+    from biography.checkpoints import Checkpoints
+
+    previous = tmp_path / "old"
+    previous.mkdir()
+    (previous / "stage.json").write_text("original", encoding="utf-8")
+    original = Checkpoints(previous)
+    original.record("stage", "key", ["stage.json"])
+    new = tmp_path / "new"
+    new.mkdir()
+    reuse = Checkpoints(new, previous)
+    assert reuse.restore("stage", "key", ["stage.json"])
+    assert (new / "stage.json").read_text(encoding="utf-8") == "original"
+    (previous / "stage.json").write_text("modified", encoding="utf-8")
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    check = Checkpoints(bad, previous)
+    assert not check.restore("stage", "key", ["stage.json"])
+    assert not check.restore("stage", "different-input", ["stage.json"])
+    assert not (bad / "stage.json").exists()
+
+
+def test_history_search_handles_russian_case_without_sql_interpolation(tmp_path):
+    from biography.store import JobStore
+
+    store = JobStore(tmp_path)
+    store.add("one", "sample.wav", "job")
+    store.update("job", "completed", "Иван Волков")
+    assert len(store.list("иван")) == 1
+    assert store.list("%' OR 1=1 --") == []
+    store.close()
+
+
+def test_context_limit_splits_work_instead_of_losing_segments():
+    from biography.errors import ContextBudgetError
+    from biography.intelligence import extract
+
+    sources = [
+        Segment(
+            segment_id=f"s{i}",
+            start_ms=i * 1000,
+            end_ms=i * 1000 + 900,
+            text_raw=f"Событие номер {i}.",
+        )
+        for i in range(4)
+    ]
+    processed = []
+
+    def backend(prompt, payload, schema):
+        if len(payload["segments"]) > 1:
+            raise ContextBudgetError("smaller required")
+        s = payload["segments"][0]
+        processed.append(s["segment_id"])
+        return FactSet(people=[], facts=[])
+
+    result = extract(sources, backend, limit=100000)
+    assert processed == ["s0", "s1", "s2", "s3"]
+    assert result.facts == []
+
+
+def test_hour_sized_role_input_is_bounded_without_dropping_a_speaker():
+    from biography.intelligence import infer_roles
+    from biography.schemas import RoleResult
+
+    sources = [
+        Segment(
+            segment_id=f"s{i}",
+            start_ms=i * 1000,
+            end_ms=i * 1000 + 900,
+            speaker_id=f"speaker_{i % 3}",
+            text_raw="Текст ответа. " * 45,
+        )
+        for i in range(1800)
+    ]
+
+    def backend(prompt, payload, schema):
+        assert len(json.dumps(payload, ensure_ascii=False)) < 20000
+        assert {s["speaker_id"] for s in payload["segments"]} == {
+            "speaker_0",
+            "speaker_1",
+            "speaker_2",
+        }
+        return RoleResult(speakers=[])
+
+    assert infer_roles(sources, backend).speakers == []

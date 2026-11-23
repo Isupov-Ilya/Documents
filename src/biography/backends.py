@@ -2,6 +2,7 @@ import gc
 import json
 from pathlib import Path
 
+from .errors import ContextBudgetError
 from .schemas import Segment, Turn
 
 
@@ -131,7 +132,7 @@ class LocalLLM:
         tokens = len(self.model.tokenize((system + content).encode("utf-8")))
         budget = self.context - tokens - 512
         if budget < 1024:
-            raise ValueError(
+            raise ContextBudgetError(
                 "Недостаточно контекста LLM. Уменьшите chunk_chars или увеличьте llm_context"
             )
         response = self.model.create_chat_completion(
@@ -148,7 +149,7 @@ class LocalLLM:
         )
         choice = response["choices"][0]
         if choice["finish_reason"] != "stop":
-            raise ValueError(
+            raise ContextBudgetError(
                 "Ответ LLM обрезан; увеличьте контекст или уменьшите chunk_chars"
             )
         return schema.model_validate_json(choice["message"]["content"])

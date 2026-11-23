@@ -43,6 +43,7 @@ def main(argv=None):
             help="Новая папка; существующая не перезаписывается",
         )
         p.add_argument("--template-profile", type=Path)
+        p.add_argument("--resume-project", type=Path)
         p.add_argument(
             "--roles", type=Path, help="JSON: ID говорящего → подтверждённая роль"
         )
@@ -145,13 +146,16 @@ def main(argv=None):
             from .pipeline import analyze_saved, run_audio
 
             function = run_audio if args.command == "run" else analyze_saved
-            function(
+            parameters = [
                 args.input.resolve(strict=True),
                 settings,
                 args.output.resolve(),
                 confirmed,
                 args.template_profile,
-            )
+            ]
+            if args.command == "run":
+                parameters.append(args.resume_project)
+            function(*parameters)
         return 0
     except KeyboardInterrupt:
         print(

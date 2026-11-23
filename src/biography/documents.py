@@ -153,7 +153,11 @@ def build_sections(facts, transcript):
             elif fact.evidence_type == "inferred":
                 line = "[ВЫВОД ИИ] " + line
             elif fact.requires_review or fact.certainty == "ambiguous":
-                line = "[ТРЕБУЕТ УТОЧНЕНИЯ] " + line
+                line = (
+                    "[ПРОВЕРИТЬ ПО АУДИО] "
+                    if fact.certainty == "explicit"
+                    else "[ТРЕБУЕТ УТОЧНЕНИЯ] "
+                ) + line
         groups[category].append(line)
     sections = {
         key: "\n".join(values) if values else "Сведения не представлены"
@@ -182,6 +186,7 @@ def _highlight(document):
                 "[ВЫВОД ИИ]",
                 "[ТРЕБУЕТ",
                 "[СОМНИТЕЛЬНО",
+                "[ПРОВЕРИТЬ",
             )
         ):
             continue
@@ -261,11 +266,9 @@ def export_documents(transcript, facts, folder: Path, profile=None):
                 f"{s.start_ms // 60000:02d}:{s.start_ms // 1000 % 60:02d} — «{e.quote}»"
             )
     # Every remaining answer stays visible; a coverage statistic is not semantic recall.
-    remaining = [
-        s
-        for s in transcript.segments
-        if s.segment_id not in covered and s.speaker_role != Role.interviewer
-    ]
+    from .coverage import uncovered_sources
+
+    remaining = uncovered_sources(transcript.segments, facts)
     if remaining:
         d.add_heading("Материал, не отражённый в структурированных фактах", 1)
         for s in remaining:

@@ -38,6 +38,7 @@ from .schemas import FactSet, Transcript
 from .store import JobStore
 
 STAGES = {
+    "verification": "Проверка исходного файла и моделей",
     "audio_preparation": "Подготовка аудио",
     "diarization": "Разделение голосов",
     "transcription": "Распознавание речи",
@@ -310,7 +311,12 @@ class MainWindow(QMainWindow):
     def __init__(self, root=None):
         super().__init__()
         self.setWindowTitle("Биография — локальная обработка интервью")
-        self.resize(1180, 820)
+        screen = QApplication.primaryScreen()
+        area = screen.availableGeometry() if screen else None
+        self.resize(
+            min(1180, area.width() - 40) if area else 1180,
+            min(820, area.height() - 60) if area else 820,
+        )
         self.preferences = QSettings("LocalBiography", "Biography")
         self.root = Path(
             root or self.preferences.value("data_root", str(data_directory()))
@@ -474,6 +480,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(pause)
         self.setup_progress = QProgressBar()
         layout.addWidget(self.setup_progress)
+        custom = QPushButton("Выбрать другие локальные модели")
+        custom.clicked.connect(self.custom_models)
+        layout.addWidget(custom)
         self.threads = QSpinBox()
         self.threads.setRange(1, max(1, os.cpu_count() or 1))
         self.threads.setValue(min(4, os.cpu_count() or 1))
@@ -481,6 +490,106 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.threads)
         layout.addStretch()
         self.tabs.addTab(page, "Подготовка и настройки")
+
+    def custom_models(self):
+        if self.process or (self.preparation and self.preparation.isRunning()):
+            return
+        from .cli import settings_at
+        from .schemas import Settings
+        from .sherpa_backend import load_config
+
+        current = None
+        try:
+            current = settings_at(self.root / "settings.json")
+        except (OSError, ValueError):
+            pass
+        values = {
+            "asr": current.whisper_model if current else "",
+            "llm": current.llm_model if current else "",
+            "seg": "",
+            "embedding": "",
+        }
+        if current and current.diarization_backend == "sherpa_onnx":
+            try:
+                c = load_config(Path(current.diarization_config))
+                values.update(seg=c.segmentation_model, embedding=c.embedding_model)
+            except (OSError, ValueError):
+                pass
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Локальные модели — без загрузки из сети")
+        dialog.resize(900, 330)
+        layout = QVBoxLayout(dialog)
+        fields = {}
+        labels = {
+            "asr": "Папка Whisper в формате CTranslate2",
+            "seg": "Segmentation ONNX для Sherpa",
+            "embedding": "Embedding ONNX с метаданными Sherpa",
+            "llm": "Языковая модель GGUF (первая часть, если их несколько)",
+        }
+        for key, title in labels.items():
+            layout.addWidget(QLabel(title))
+            row = QHBoxLayout()
+            edit = QLineEdit(values[key])
+            fields[key] = edit
+            row.addWidget(edit)
+            button = QPushButton("Выбрать")
+
+            def choose(checked=False, key=key):
+                if key == "asr":
+                    selected = QFileDialog.getExistingDirectory(
+                        dialog, "Модель Whisper"
+                    )
+                else:
+                    selected, _ = QFileDialog.getOpenFileName(
+                        dialog, "Локальная модель", "", "Модели (*.onnx *.gguf)"
+                    )
+                if selected:
+                    fields[key].setText(selected)
+
+            button.clicked.connect(choose)
+            row.addWidget(button)
+            layout.addLayout(row)
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        try:
+            for key in ("seg", "embedding", "llm"):
+                if not Path(fields[key].text()).is_file():
+                    raise ValueError("Выберите существующие файлы моделей")
+            if not (Path(fields["asr"].text()) / "model.bin").is_file():
+                raise ValueError("В папке Whisper отсутствует model.bin")
+            folder = self.root / "model-configs"
+            folder.mkdir(exist_ok=True)
+            path = folder / (uuid.uuid4().hex + ".json")
+            write_json(
+                path,
+                {
+                    "segmentation_model": str(Path(fields["seg"].text()).resolve()),
+                    "embedding_model": str(Path(fields["embedding"].text()).resolve()),
+                    "num_clusters": -1,
+                    "cluster_threshold": 0.5,
+                },
+            )
+            from .runtime import local_tool
+
+            settings = Settings(
+                whisper_model=str(Path(fields["asr"].text()).resolve()),
+                diarization_config=str(path),
+                diarization_backend="sherpa_onnx",
+                llm_model=str(Path(fields["llm"].text()).resolve()),
+                llm_context=8192,
+                chunk_chars=12000,
+                threads=self.threads.value(),
+                ffmpeg=local_tool("ffmpeg"),
+                ffprobe=local_tool("ffprobe"),
+            )
+            write_json(self.root / "settings.json", settings)
+            self.refresh_setup()
+        except Exception as error:
+            message(self, error)
 
     def choose_audio(self):
         name, _ = QFileDialog.getOpenFileName(
@@ -632,7 +741,7 @@ class MainWindow(QMainWindow):
             return
         self._launch(source, False, None)
 
-    def _launch(self, source, resume, roles):
+    def _launch(self, source, resume, roles, cache_from=None):
         if self.process:
             return
         try:
@@ -649,6 +758,8 @@ class MainWindow(QMainWindow):
             ]
             if roles:
                 command += ["--roles", str(roles)]
+            if cache_from:
+                command += ["--resume-project", str(cache_from)]
             profile = self.profile.currentData()
             if profile:
                 command += ["--template-profile", profile]
@@ -716,6 +827,10 @@ class MainWindow(QMainWindow):
         self.process.kill()
 
     def job_finished(self, code, status):
+        if self.process is None or (
+            self.sender() is not None and self.sender() is not self.process
+        ):
+            return
         process = self.process
         self.process = None
         if process:
@@ -741,7 +856,20 @@ class MainWindow(QMainWindow):
             report["error"] = "Обработка прервана или завершилась аварийно"
             write_json(report_path, report)
         state = report.get("status", "failed")
-        self.store.update(self.current_output, state)
+        name = None
+        try:
+            from .documents import build_sections
+
+            t = Transcript.model_validate_json(
+                (self.current_output / "transcript.json").read_text(encoding="utf-8")
+            )
+            f = FactSet.model_validate_json(
+                (self.current_output / "facts.json").read_text(encoding="utf-8")
+            )
+            name = build_sections(f, t)[0]["full_name"]
+        except (OSError, ValueError):
+            pass
+        self.store.update(self.current_output, state, name)
         self.status.setText(
             STATUSES.get(state, state)
             + ((": " + report["error"]) if report.get("error") else "")
@@ -834,7 +962,9 @@ class MainWindow(QMainWindow):
                 STATUSES.get(data.get("status"), data.get("status", ""))
             )
         self.roles_button.setEnabled(bool(self.transcript))
-        self.resume_button.setEnabled(bool(self.transcript))
+        self.resume_button.setEnabled(
+            bool(self.transcript) or (self.current_output / "source.json").is_file()
+        )
         self.export_button.setEnabled((self.current_output / "facts.json").exists())
 
     def seek_segment(self):
@@ -866,11 +996,20 @@ class MainWindow(QMainWindow):
         self.resume_job(path)
 
     def resume_job(self, roles=None):
-        if (
-            not self.current_output
-            or not (self.current_output / "transcript.json").exists()
-        ):
-            message(self, "Сначала выберите сохранённую транскрипцию в истории")
+        if not self.current_output:
+            message(self, "Выберите сохранённое задание в истории")
+            return
+        if not (self.current_output / "transcript.json").exists():
+            metadata = self.current_output / "source.json"
+            if metadata.exists():
+                source = Path(json.loads(metadata.read_text(encoding="utf-8"))["path"])
+                if source.is_file():
+                    self._launch(source, False, None, self.current_output)
+                    return
+            message(
+                self,
+                "Для этого этапа нужно исходное аудио. Выберите его и запустите новое задание.",
+            )
             return
         source = self.current_output / "transcript.json"
         if roles is False:

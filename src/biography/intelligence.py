@@ -47,8 +47,18 @@ def infer_roles(segments, llm):
             grouped.setdefault(s.speaker_id, []).append(s)
     sample = {}
     for items in grouped.values():
-        for s in items[:60] + items[-30:]:
-            sample[s.segment_id] = s.model_dump(mode="json")
+        budget = 4500 if len(grouped) == 2 else 3000
+        for s in items[:3] + items[-3:] + items[3:6]:
+            text = s.text_raw[:500]
+            if len(text) > budget:
+                continue
+            sample[s.segment_id] = {
+                "segment_id": s.segment_id,
+                "speaker_id": s.speaker_id,
+                "start_ms": s.start_ms,
+                "text_raw": text,
+            }
+            budget -= len(text) + 100
     if not sample:
         return RoleResult(speakers=[])
     return llm(
@@ -151,12 +161,35 @@ def _merge_part(merged, part, namespace, segments):
         person_ids[p.person_id] = key
         if key in known:
             previous = known[key].model_copy(deep=True)
-            previous.mentions += [m for m in p.mentions if m not in previous.mentions]
-            if previous.name and p.name and previous.name != p.name:
+            lookup = {s.segment_id: s.text_raw for s in segments}
+            valid_mentions = [
+                m
+                for m in p.mentions
+                if m.segment_id in lookup and m.text in lookup[m.segment_id]
+            ]
+            if len(valid_mentions) != len(p.mentions):
+                merged.uncertainties.append(
+                    "Неподтверждённое дополнительное упоминание известного лица отклонено: "
+                    + key
+                )
+            previous.mentions += [
+                m for m in valid_mentions if m not in previous.mentions
+            ]
+            if valid_mentions and previous.name and p.name and previous.name != p.name:
                 previous.identity_status = "ambiguous"
                 merged.uncertainties.append("Разные варианты имени одного лица: " + key)
-            elif not previous.name:
+            elif valid_mentions and not previous.name:
                 previous.name = p.name
+            if valid_mentions and p.relationship_to_respondent:
+                if not previous.relationship_to_respondent:
+                    previous.relationship_to_respondent = p.relationship_to_respondent
+                elif (
+                    previous.relationship_to_respondent != p.relationship_to_respondent
+                ):
+                    previous.identity_status = "ambiguous"
+                    merged.uncertainties.append(
+                        "Разные описания связи с респондентом: " + key
+                    )
             people[key] = previous
         else:
             p.person_id = key
@@ -257,10 +290,10 @@ def _merge_part(merged, part, namespace, segments):
 
 def _payload(merged, batch, namespace):
     text = " ".join(s.text_raw for s in batch).casefold()
-    selected = merged.people[:20] + merged.people[-20:]
+    selected = merged.people[:8] + merged.people[-8:]
     selected += [p for p in merged.people if p.name and p.name.casefold() in text]
     people = {p.person_id: p for p in selected}
-    recent = merged.facts[-20:]
+    recent = merged.facts[-12:]
     return {
         "namespace": namespace,
         "known_people": [
@@ -270,14 +303,14 @@ def _payload(merged, batch, namespace):
                 "relationship_to_respondent": p.relationship_to_respondent,
                 "identity_status": p.identity_status,
             }
-            for p in list(people.values())[:60]
+            for p in list(people.values())[:20]
         ],
         "known_facts": [
             {
                 "fact_id": f.fact_id,
                 "subject_person_id": f.subject_person_id,
                 "predicate": f.predicate,
-                "value": f.value,
+                "value": f.value[:240],
             }
             for f in recent
         ],
@@ -294,38 +327,57 @@ def _payload(merged, batch, namespace):
     }
 
 
-def extract(segments, llm, limit=5000, checkpoint=None):
+def extract(segments, llm, limit=5000, checkpoint=None, trace=None):
+    from .errors import ContextBudgetError
+
     merged = FactSet(people=[], facts=[])
     sequence = 0
-    for batch in chunks(segments, limit):
-        namespace = f"{sequence:04d}"
-        part = llm(FACT_PROMPT, _payload(merged, batch, namespace), FactSet)
+
+    def process(batch, prompt):
+        nonlocal merged, sequence
+        payload = _payload(merged, batch, f"{sequence:04d}")
+        for trim in (None, 8, 3):
+            if trim is not None:
+                payload["known_facts"] = []
+                payload["known_people"] = payload["known_people"][:trim]
+            try:
+                part = llm(prompt, payload, FactSet)
+                break
+            except ContextBudgetError:
+                if len(batch) > 1:
+                    middle = len(batch) // 2
+                    process(batch[:middle], prompt)
+                    process(batch[middle:], prompt)
+                    return
+                if trim == 3:
+                    raise
         if checkpoint:
             checkpoint(sequence, part)
-        merged = _merge_part(merged, part, namespace, segments)
+        if trace:
+            trace(sequence, [s.segment_id for s in batch])
+        merged = _merge_part(merged, part, f"{sequence:04d}", segments)
         sequence += 1
-        # One bounded recovery pass for substantive respondent utterances omitted entirely.
-        cited = {e.segment_id for f in merged.facts for e in f.evidence}
-        missing = [
-            s
-            for s in batch
-            if s.speaker_role.value == "respondent"
-            and s.segment_id not in cited
-            and len(s.text_raw.split()) >= 4
-        ]
+
+    for batch in chunks(segments, limit):
+        process(batch, FACT_PROMPT)
+        from .coverage import uncovered_sources
+
+        missing = uncovered_sources(batch, merged, respondents_only=True)
         if missing:
-            namespace = f"{sequence:04d}"
-            prompt = (
+            process(
+                missing,
                 FACT_PROMPT
-                + "\nКонтроль полноты: следующие ответы пока не отражены в фактах. Извлеки каждое существенное событие, включая обучение, работу, даты и должности. Не повторяй known_facts."
+                + "\nКонтроль полноты: следующие ответы пока не отражены в фактах. Извлеки каждое существенное событие, включая обучение, работу, даты и должности. Не повторяй known_facts.",
             )
-            part = llm(prompt, _payload(merged, missing, namespace), FactSet)
-            if checkpoint:
-                checkpoint(sequence, part)
-            merged = _merge_part(merged, part, namespace, segments)
-            sequence += 1
+    from .claims import preserve_competing_claims
+
+    merged = preserve_competing_claims(merged)
+    validate_sources(merged, segments)
     for warning in semantic_warnings(merged):
         merged.uncertainties.append(warning["fact_id"] + ": " + warning["reason"])
+    for fact in merged.facts:
+        if not fact.human_reviewed:
+            fact.requires_review = True
     return merged
 
 

@@ -150,6 +150,10 @@ def analyze(
             checkpoint=lambda index, part: write_json(
                 run.output / f"facts_batch_{index:04d}.json", part
             ),
+            trace=lambda index, ids: write_json(
+                run.output / f"facts_input_{index:04d}.json",
+                {"source_segment_ids": ids},
+            ),
         )
         write_json(run.output / "facts.json", facts)
     run.report.update(
@@ -177,29 +181,119 @@ def analyze(
     return facts
 
 
-def run_audio(source, settings, output, confirmed=None, profile=None):
+def run_audio(
+    source, settings, output, confirmed=None, profile=None, resume_project=None
+):
+    import json
+    import wave
+
     from .audio import prepare
-    from .backends import LocalLLM, diarize, transcribe
+    from .backends import LocalLLM, _transcribe_worker, diarize, transcribe
+    from .checkpoints import Checkpoints, code_fingerprint, digest, fingerprint
+    from .io import sha256
+    from .schemas import Segment, Turn
+    from .sherpa_backend import _diarize_worker, load_config
 
     with Run(output, "audio_models") as run, offline_mode():
-        with run.stage("audio_preparation"):
-            metadata = prepare(
-                source, output / "prepared.wav", settings.ffmpeg, settings.ffprobe
+        checkpoints = Checkpoints(output, resume_project)
+        with run.stage("verification"):
+            if source.suffix.casefold() not in {".m4a", ".wav", ".mp3"}:
+                raise ValueError("Поддерживаются M4A, WAV, MP3")
+            original = sha256(source)
+            audio_key = digest(
+                {
+                    "audio": original,
+                    "decoder": settings.ffmpeg,
+                    "code": code_fingerprint(prepare),
+                }
             )
-            write_json(output / "source.json", metadata)
+            diar_config = fingerprint(settings.diarization_config)
+            if (
+                settings.diarization_backend == "sherpa_onnx"
+                and Path(settings.diarization_config).is_file()
+            ):
+                c = load_config(Path(settings.diarization_config))
+                diar_config = digest(
+                    {
+                        "config": c.model_dump(),
+                        "segmentation": fingerprint(c.segmentation_model),
+                        "embedding": fingerprint(c.embedding_model),
+                    }
+                )
+            diar_key = digest(
+                {
+                    "audio": audio_key,
+                    "model": diar_config,
+                    "backend": settings.diarization_backend,
+                    "min": settings.min_speakers,
+                    "max": settings.max_speakers,
+                    "device": settings.device,
+                    "threads": settings.threads,
+                    "code": code_fingerprint(diarize),
+                    "worker": code_fingerprint(_diarize_worker),
+                }
+            )
+            asr_key = digest(
+                {
+                    "audio": audio_key,
+                    "model": fingerprint(settings.whisper_model),
+                    "device": settings.device,
+                    "compute": settings.compute_type,
+                    "threads": settings.threads,
+                    "code": code_fingerprint(_transcribe_worker),
+                }
+            )
             write_json(output / "settings.json", settings)
+        with run.stage("audio_preparation"):
+            if checkpoints.restore("audio_preparation", audio_key, ["prepared.wav"]):
+                with wave.open(str(output / "prepared.wav")) as audio:
+                    duration = audio.getnframes() / audio.getframerate()
+                metadata = {
+                    "path": str(source.resolve()),
+                    "sha256": original,
+                    "duration_seconds": duration,
+                }
+                run.report.setdefault("reused_stages", []).append("audio_preparation")
+            else:
+                metadata = prepare(
+                    source, output / "prepared.wav", settings.ffmpeg, settings.ffprobe
+                )
+            if metadata["sha256"] != original:
+                raise ValueError("Исходное аудио изменилось во время подготовки")
+            write_json(output / "source.json", metadata)
+            checkpoints.record("audio_preparation", audio_key, ["prepared.wav"])
         with run.stage("diarization"):
-            turns = diarize(output / "prepared.wav", settings)
-            if not turns:
-                raise ValueError("Диаризация не обнаружила речь")
-            write_json(output / "diarization.json", [t.model_dump() for t in turns])
+            if checkpoints.restore("diarization", diar_key, ["diarization.json"]):
+                turns = [
+                    Turn.model_validate(t)
+                    for t in json.loads(
+                        (output / "diarization.json").read_text(encoding="utf-8")
+                    )
+                ]
+                run.report.setdefault("reused_stages", []).append("diarization")
+            else:
+                turns = diarize(output / "prepared.wav", settings)
+                if not turns:
+                    raise ValueError("Диаризация не обнаружила речь")
+                write_json(output / "diarization.json", [t.model_dump() for t in turns])
+            checkpoints.record("diarization", diar_key, ["diarization.json"])
         with run.stage("transcription"):
-            raw = transcribe(output / "prepared.wav", settings)
-            write_json(
-                output / "asr_raw.json", [s.model_dump(mode="json") for s in raw]
-            )
+            if checkpoints.restore("transcription", asr_key, ["asr_raw.json"]):
+                raw = [
+                    Segment.model_validate(s)
+                    for s in json.loads(
+                        (output / "asr_raw.json").read_text(encoding="utf-8")
+                    )
+                ]
+                run.report.setdefault("reused_stages", []).append("transcription")
+            else:
+                raw = transcribe(output / "prepared.wav", settings)
+                write_json(
+                    output / "asr_raw.json", [s.model_dump(mode="json") for s in raw]
+                )
+            checkpoints.record("transcription", asr_key, ["asr_raw.json"])
             transcript = Transcript(
-                source_sha256=metadata["sha256"],
+                source_sha256=original,
                 duration_seconds=metadata["duration_seconds"],
                 segments=coalesce(align(raw, turns)),
             )

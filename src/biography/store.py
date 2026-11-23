@@ -8,6 +8,7 @@ class JobStore:
         root = Path(root)
         root.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(root / "history.sqlite3")
+        self.db.create_function("CASEFOLD", 1, lambda value: (value or "").casefold())
         self.db.execute(
             "CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, created TEXT, source TEXT, output TEXT UNIQUE, name TEXT, status TEXT)"
         )
@@ -40,10 +41,15 @@ class JobStore:
         self.db.commit()
 
     def list(self, query=""):
-        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        escaped = (
+            query.casefold()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
         text = "%" + escaped + "%"
         return self.db.execute(
-            "SELECT id,created,source,output,name,status FROM jobs WHERE name LIKE ? ESCAPE '\\' OR source LIKE ? ESCAPE '\\' OR created LIKE ? ESCAPE '\\' ORDER BY created DESC",
+            "SELECT id,created,source,output,name,status FROM jobs WHERE CASEFOLD(name) LIKE ? ESCAPE '\\' OR CASEFOLD(source) LIKE ? ESCAPE '\\' OR CASEFOLD(created) LIKE ? ESCAPE '\\' ORDER BY created DESC",
             (text, text, text),
         ).fetchall()
 

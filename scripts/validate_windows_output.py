@@ -15,6 +15,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--project", type=Path, required=True)
     p.add_argument("--report", type=Path, required=True)
+    p.add_argument("--minimum-duration", type=float, default=0)
     a = p.parse_args()
 
     def read(name):
@@ -27,6 +28,18 @@ def main():
     facts = FactSet.model_validate(read("facts.json"))
     validate_sources(facts, transcript.segments)
     assert transcript.source_kind == "audio"
+    assert transcript.duration_seconds >= a.minimum_duration
+    processed = set()
+    for path in a.project.glob("facts_input_*.json"):
+        processed.update(
+            json.loads(path.read_text(encoding="utf-8"))["source_segment_ids"]
+        )
+    assert processed == {s.segment_id for s in transcript.segments}, (
+        "Some source segments never reached the model"
+    )
+    if a.minimum_duration >= 3600:
+        assert sum(len(s.text_raw.split()) for s in transcript.segments) > 4000
+        assert transcript.segments[-1].end_ms >= (a.minimum_duration - 20) * 1000
     assert len(facts.facts) >= 5, "No meaningful facts extracted"
     assert len(facts.people) >= 3, (
         "Respondent, father and colleague must remain distinct"
@@ -57,6 +70,11 @@ def main():
         "status": "passed",
         "actual_models": True,
         "fact_count": len(facts.facts),
+        "audio_duration_seconds": transcript.duration_seconds,
+        "model_input_segment_count": len(processed),
+        "test_kind": "hour_repeated_synthetic_stability"
+        if a.minimum_duration >= 3600
+        else "short_synthetic_functional",
         "person_count": len(facts.people),
         "conflict_count": len(facts.conflicts),
         "roles_source": report["roles_source"],
