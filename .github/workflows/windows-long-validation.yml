@@ -4,7 +4,19 @@ on:
     inputs:
       release_tag:
         description: Tested installer release tag
-        required: true
+        required: false
+        type: string
+      artifact_run:
+        description: Build artifact run ID when release upload is unavailable
+        required: false
+        type: string
+      artifact_sha256:
+        description: Expected SHA-256 of the validated artifact installer
+        required: false
+        type: string
+      source_ref:
+        description: Exact build commit for the artifact installer
+        required: false
         type: string
       build_run:
         description: Wait for this release build before starting (optional run ID)
@@ -38,13 +50,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ inputs.source_ref || inputs.release_tag }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Install validation tools only
         run: python -m pip install -e ".[test]"
       - name: Download the already tested installer
+        if: ${{ inputs.artifact_run == '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -54,6 +67,25 @@ jobs:
           $sum=Get-Content downloaded/SHA256SUMS.txt | Where-Object { $_ -match '  Biography-Setup-Windows-x64\.exe$' }
           $actual=(Get-FileHash downloaded/Biography-Setup-Windows-x64.exe -Algorithm SHA256).Hash
           if (!$sum -or $actual -ine ($sum -split ' +')[0]) { throw 'Installer checksum mismatch' }
+      - uses: actions/download-artifact@v4
+        if: ${{ inputs.artifact_run != '' }}
+        with:
+          name: Biography-Windows-build-and-validation
+          run-id: ${{ inputs.artifact_run }}
+          github-token: ${{ github.token }}
+          path: build-output
+      - name: Verify the installer from the completed offline build check
+        if: ${{ inputs.artifact_run != '' }}
+        env:
+          EXPECTED_SHA: ${{ inputs.artifact_sha256 }}
+        run: |
+          $offline=Get-Content build-output/validation/offline-test.json -Raw -Encoding UTF8 | ConvertFrom-Json
+          $proof=Get-Content build-output/validation/firewall-proof.json -Raw -Encoding UTF8 | ConvertFrom-Json
+          $installer='build-output/installer/Biography-Setup-Windows-x64.exe'
+          $actual=(Get-FileHash $installer -Algorithm SHA256).Hash
+          if ($offline.status -ne 'passed' -or !$proof.outbound_firewall_block_verified -or $actual -ine $env:EXPECTED_SHA) { throw 'Artifact differs from the validated installer' }
+          New-Item -ItemType Directory -Path downloaded | Out-Null
+          Copy-Item $installer downloaded/
       - name: Install and create the test profile
         run: |
           $install=Join-Path $env:RUNNER_TEMP 'Биография часовая проверка'
@@ -88,7 +120,7 @@ jobs:
           path: dist/validation
           retention-days: 30
       - name: Attach passed evidence to the installer release
-        if: success()
+        if: ${{ success() && inputs.release_tag != '' && inputs.artifact_run == '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
