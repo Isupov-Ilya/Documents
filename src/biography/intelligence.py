@@ -1,5 +1,6 @@
 import json
 
+from .provenance import expand_adjacent_evidence, semantic_warnings
 from .schemas import FactSet, RoleResult
 
 ROLE_PROMPT = """Определи роли говорящих в русском интервью.
@@ -132,49 +133,199 @@ def chunks(segments, limit):
         yield result
 
 
+def _merge_part(merged, part, namespace, segments):
+    from .schemas import Conflict
+
+    part = part.model_copy(deep=True)
+    declared = {i for c in part.conflicts for i in c.fact_ids}
+    if any(
+        (f.has_conflict or f.conflict_group_id) and f.fact_id not in declared
+        for f in part.facts
+    ):
+        raise ValueError("Отсутствует описание противоречия")
+    known = {p.person_id: p for p in merged.people}
+    people = dict(known)
+    person_ids = {}
+    for index, p in enumerate(part.people, 1):
+        key = p.person_id if p.person_id in known else f"person_{namespace}_{index:03d}"
+        person_ids[p.person_id] = key
+        if key in known:
+            previous = known[key].model_copy(deep=True)
+            previous.mentions += [m for m in p.mentions if m not in previous.mentions]
+            if previous.name and p.name and previous.name != p.name:
+                previous.identity_status = "ambiguous"
+                merged.uncertainties.append("Разные варианты имени одного лица: " + key)
+            elif not previous.name:
+                previous.name = p.name
+            people[key] = previous
+        else:
+            p.person_id = key
+            people[key] = p
+    facts = [f.model_copy(deep=True) for f in merged.facts]
+    fact_ids = {}
+
+    def key(f):
+        return (
+            f.subject_person_id,
+            f.predicate,
+            f.value,
+            f.certainty,
+            f.evidence_type,
+            json.dumps(f.date.model_dump() if f.date else None, sort_keys=True),
+        )
+
+    existing = {key(f): f for f in facts}
+    for index, f in enumerate(part.facts, 1):
+        original = f.fact_id
+        f.subject_person_id = person_ids.get(f.subject_person_id, f.subject_person_id)
+        f.human_reviewed = False
+        if key(f) in existing:
+            target = existing[key(f)]
+            target.evidence += [e for e in f.evidence if e not in target.evidence]
+            target.requires_review |= f.requires_review
+            fact_ids[original] = target.fact_id
+        else:
+            f.fact_id = f"fact_{namespace}_{index:04d}"
+            fact_ids[original] = f.fact_id
+            facts.append(f)
+            existing[key(f)] = f
+    for relation in part.relations:
+        relation.subject_person_id = person_ids.get(
+            relation.subject_person_id, relation.subject_person_id
+        )
+        relation.object_person_id = person_ids.get(
+            relation.object_person_id, relation.object_person_id
+        )
+    # Merge intersecting conflict sets instead of assigning one fact to two groups.
+    groups = [(set(c.fact_ids), c.explanation) for c in merged.conflicts]
+    for c in part.conflicts:
+        ids = {fact_ids.get(i, i) for i in c.fact_ids}
+        if len(ids) >= 2:
+            groups.append((ids, c.explanation))
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(groups)):
+            for j in range(i + 1, len(groups)):
+                if groups[i][0] & groups[j][0]:
+                    groups[i] = (
+                        groups[i][0] | groups[j][0],
+                        groups[i][1] + "; " + groups[j][1],
+                    )
+                    groups.pop(j)
+                    changed = True
+                    break
+            if changed:
+                break
+    conflicts = [
+        Conflict(
+            conflict_group_id=f"conflict_{i:04d}",
+            fact_ids=sorted(ids),
+            explanation=reason,
+        )
+        for i, (ids, reason) in enumerate(groups, 1)
+    ]
+    grouped = {fid: c.conflict_group_id for c in conflicts for fid in c.fact_ids}
+    for f in facts:
+        f.has_conflict = f.fact_id in grouped
+        f.conflict_group_id = grouped.get(f.fact_id)
+    result = FactSet(
+        people=list(people.values()),
+        facts=facts,
+        relations=merged.relations + part.relations,
+        conflicts=conflicts,
+        uncertainties=merged.uncertainties + part.uncertainties,
+    )
+    result, repairs = expand_adjacent_evidence(result, segments)
+    for repair in repairs:
+        result.uncertainties.append(
+            "Цитата расширена на соседние фрагменты: " + repair["fact_id"]
+        )
+    validate_sources(result, segments)
+    # Populate only names literally stated by an explicit full_name fact.
+    for f in result.facts:
+        if f.predicate == "full_name" and f.subject_person_id in people:
+            person = next(
+                p for p in result.people if p.person_id == f.subject_person_id
+            )
+            if not person.name and any(
+                f.value.casefold() in e.quote.casefold() for e in f.evidence
+            ):
+                person.name = f.value
+    return result
+
+
+def _payload(merged, batch, namespace):
+    text = " ".join(s.text_raw for s in batch).casefold()
+    selected = merged.people[:20] + merged.people[-20:]
+    selected += [p for p in merged.people if p.name and p.name.casefold() in text]
+    people = {p.person_id: p for p in selected}
+    recent = merged.facts[-20:]
+    return {
+        "namespace": namespace,
+        "known_people": [
+            {
+                "person_id": p.person_id,
+                "name": p.name,
+                "relationship_to_respondent": p.relationship_to_respondent,
+                "identity_status": p.identity_status,
+            }
+            for p in list(people.values())[:60]
+        ],
+        "known_facts": [
+            {
+                "fact_id": f.fact_id,
+                "subject_person_id": f.subject_person_id,
+                "predicate": f.predicate,
+                "value": f.value,
+            }
+            for f in recent
+        ],
+        "segments": [
+            {
+                "segment_id": s.segment_id,
+                "speaker_id": s.speaker_id,
+                "speaker_role": s.speaker_role.value,
+                "text_raw": s.text_raw,
+                "requires_review": s.requires_review,
+            }
+            for s in batch
+        ],
+    }
+
+
 def extract(segments, llm, limit=5000, checkpoint=None):
     merged = FactSet(people=[], facts=[])
-    for index, batch in enumerate(chunks(segments, limit)):
-        # Known facts enable cross-chunk conflicts; token budget is checked by backend.
-        payload = {
-            "namespace": f"batch_{index:04d}_",
-            "known_people": [p.model_dump() for p in merged.people],
-            "known_facts": [f.model_dump() for f in merged.facts],
-            "segments": [
-                {
-                    "segment_id": s.segment_id,
-                    "speaker_id": s.speaker_id,
-                    "speaker_role": s.speaker_role.value,
-                    "text_raw": s.text_raw,
-                    "requires_review": s.requires_review,
-                }
-                for s in batch
-            ],
-        }
-        part = llm(FACT_PROMPT, payload, FactSet)
+    sequence = 0
+    for batch in chunks(segments, limit):
+        namespace = f"{sequence:04d}"
+        part = llm(FACT_PROMPT, _payload(merged, batch, namespace), FactSet)
         if checkpoint:
-            checkpoint(index, part)
-        people = {p.person_id: p for p in merged.people}
-        for person in part.people:
-            if person.person_id in people:
-                previous = people[person.person_id]
-                if (
-                    previous.name != person.name
-                    or previous.identity_status != person.identity_status
-                ):
-                    raise ValueError("LLM изменила ранее установленную личность")
-                person.mentions = previous.mentions + [
-                    m for m in person.mentions if m not in previous.mentions
-                ]
-            people[person.person_id] = person
-        merged = FactSet(
-            people=list(people.values()),
-            facts=merged.facts + part.facts,
-            relations=merged.relations + part.relations,
-            conflicts=merged.conflicts + part.conflicts,
-            uncertainties=merged.uncertainties + part.uncertainties,
-        )
-        validate_sources(merged, segments)
+            checkpoint(sequence, part)
+        merged = _merge_part(merged, part, namespace, segments)
+        sequence += 1
+        # One bounded recovery pass for substantive respondent utterances omitted entirely.
+        cited = {e.segment_id for f in merged.facts for e in f.evidence}
+        missing = [
+            s
+            for s in batch
+            if s.speaker_role.value == "respondent"
+            and s.segment_id not in cited
+            and len(s.text_raw.split()) >= 4
+        ]
+        if missing:
+            namespace = f"{sequence:04d}"
+            prompt = (
+                FACT_PROMPT
+                + "\nКонтроль полноты: следующие ответы пока не отражены в фактах. Извлеки каждое существенное событие, включая обучение, работу, даты и должности. Не повторяй known_facts."
+            )
+            part = llm(prompt, _payload(merged, missing, namespace), FactSet)
+            if checkpoint:
+                checkpoint(sequence, part)
+            merged = _merge_part(merged, part, namespace, segments)
+            sequence += 1
+    for warning in semantic_warnings(merged):
+        merged.uncertainties.append(warning["fact_id"] + ": " + warning["reason"])
     return merged
 
 

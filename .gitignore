@@ -13,3 +13,8 @@ results/
 .ruff_cache/
 core
 core.*
+history.sqlite3
+job-configs/
+jobs/
+profiles/
+settings.json

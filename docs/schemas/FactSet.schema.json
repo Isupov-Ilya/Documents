@@ -86,6 +86,11 @@
           "title": "Fact Id",
           "type": "string"
         },
+        "human_reviewed": {
+          "default": false,
+          "title": "Human Reviewed",
+          "type": "boolean"
+        },
         "subject_person_id": {
           "anyOf": [
             {

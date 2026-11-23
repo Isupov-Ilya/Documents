@@ -1,0 +1,142 @@
+[
+  {
+    "repo": "Systran/faster-whisper-small",
+    "revision": "536b0662742c02347bc0e980a01041f333bce120",
+    "file": "config.json",
+    "size": 2370,
+    "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "e5047537059bd8f182d9ca64c470201585015187",
+    "relative_path": "whisper-small/config.json"
+  },
+  {
+    "repo": "Systran/faster-whisper-small",
+    "revision": "536b0662742c02347bc0e980a01041f333bce120",
+    "file": "model.bin",
+    "size": 483546902,
+    "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+    "publisher_lfs_sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+    "publisher_git_blob": "504a7fe023f19460564a623887a9f77ea53ac708",
+    "relative_path": "whisper-small/model.bin"
+  },
+  {
+    "repo": "Systran/faster-whisper-small",
+    "revision": "536b0662742c02347bc0e980a01041f333bce120",
+    "file": "tokenizer.json",
+    "size": 2203239,
+    "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "7818adb6de9fa3064d3ff81226fdd675be1f6344",
+    "relative_path": "whisper-small/tokenizer.json"
+  },
+  {
+    "repo": "Systran/faster-whisper-small",
+    "revision": "536b0662742c02347bc0e980a01041f333bce120",
+    "file": "vocabulary.txt",
+    "size": 459861,
+    "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "c9074644d9d1205686f16d411564729461324b75",
+    "relative_path": "whisper-small/vocabulary.txt"
+  },
+  {
+    "repo": "Systran/faster-whisper-small",
+    "revision": "536b0662742c02347bc0e980a01041f333bce120",
+    "file": "README.md",
+    "size": 1998,
+    "sha256": "329373481008c7c38654aff8ecdcf0163c211557cc7ba8e2ef6f2f84b4f75ec8",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "16511f6106ead2fbc3a1480957a217c2661a5a98",
+    "relative_path": "whisper-small/README.md"
+  },
+  {
+    "repo": "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0",
+    "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+    "file": "model.onnx",
+    "size": 5992913,
+    "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
+    "publisher_lfs_sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
+    "publisher_git_blob": "c768b3a2b5175449cb71538570b0d8ebf49a7baf",
+    "relative_path": "segmentation/model.onnx"
+  },
+  {
+    "repo": "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0",
+    "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+    "file": "LICENSE",
+    "size": 1061,
+    "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "e5e0c2daded4524693e062d3e4fd016bbfb9a308",
+    "relative_path": "segmentation/LICENSE"
+  },
+  {
+    "repo": "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0",
+    "revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+    "file": "README.md",
+    "size": 115,
+    "sha256": "0380ed76a50efcc421dc62f251ed06e8349688466beac3177bee6e00dc336bfc",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "cf54638bee46b9f3114082547eba694cbec4d4e5",
+    "relative_path": "segmentation/README.md"
+  },
+  {
+    "repo": "Wespeaker/wespeaker-voxceleb-resnet34-LM",
+    "revision": "f0c48c298fd835726c27956a5d617bad7115627e",
+    "file": "voxceleb_resnet34_LM.onnx",
+    "size": 26530309,
+    "sha256": "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068",
+    "publisher_lfs_sha256": "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068",
+    "publisher_git_blob": "81d3cfc3bfc4c32e4f2c3586a2042b010da3d415",
+    "relative_path": "embedding/voxceleb_resnet34_LM.onnx"
+  },
+  {
+    "repo": "Wespeaker/wespeaker-voxceleb-resnet34-LM",
+    "revision": "f0c48c298fd835726c27956a5d617bad7115627e",
+    "file": "README.md",
+    "size": 3152,
+    "sha256": "af2f6592a73d1333b872f75c6047f24bd1bb53346c0597edc1544140aa9c7e73",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "791af3290910857fce8149a7b550e55fde75e274",
+    "relative_path": "embedding/README.md"
+  },
+  {
+    "repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+    "revision": "bb5d59e06d9551d752d08b292a50eb208b07ab1f",
+    "file": "qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf",
+    "size": 3993201344,
+    "sha256": "dfce12e3862a5283ccfb88221b48480e58745165de856439950d0f22590580db",
+    "publisher_lfs_sha256": "dfce12e3862a5283ccfb88221b48480e58745165de856439950d0f22590580db",
+    "publisher_git_blob": "72de309249b41bf41019dd2efc5cb8e4a19c8c8e",
+    "relative_path": "llm-7b/qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf"
+  },
+  {
+    "repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+    "revision": "bb5d59e06d9551d752d08b292a50eb208b07ab1f",
+    "file": "qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf",
+    "size": 689872288,
+    "sha256": "539cf93f78e887edea1c04e2d7d8cdaca9d01dae9c9025bcb8accbe29df3d72a",
+    "publisher_lfs_sha256": "539cf93f78e887edea1c04e2d7d8cdaca9d01dae9c9025bcb8accbe29df3d72a",
+    "publisher_git_blob": "c550b63c2e50a9984b5535c5c21ccd168c0cb08f",
+    "relative_path": "llm-7b/qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf"
+  },
+  {
+    "repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+    "revision": "bb5d59e06d9551d752d08b292a50eb208b07ab1f",
+    "file": "LICENSE",
+    "size": 11343,
+    "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "6634c8cc3133b3848ec74b9f275acaaa1ea618ab",
+    "relative_path": "llm-7b/LICENSE"
+  },
+  {
+    "repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+    "revision": "bb5d59e06d9551d752d08b292a50eb208b07ab1f",
+    "file": "README.md",
+    "size": 5633,
+    "sha256": "b813de546b5f0a1d8c49307d428582fd649be627d9b33a60ecf807a3381af05e",
+    "publisher_lfs_sha256": null,
+    "publisher_git_blob": "ca2c9f96fd63f24198dfafd7facbfef1366d6a99",
+    "relative_path": "llm-7b/README.md"
+  }
+]

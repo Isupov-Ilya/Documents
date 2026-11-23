@@ -2,17 +2,22 @@ name: Windows product build and offline validation
 on:
   push:
     branches: [main]
+    paths: ['src/**','scripts/**','tests/**','packaging/**','pyproject.toml','.github/workflows/windows-release.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: biography-windows-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   windows:
     runs-on: windows-2022
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '2'
       CMAKE_ARGS: '-DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DGGML_CUDA=OFF'
       QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,19 +26,61 @@ jobs:
           cache: pip
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install CPU application and build dependencies
-        run: python -m pip install -e ".[test,asr,onnx-diarization,llm]" PySide6==6.8.3 python-docx==1.2.0 pyinstaller==6.16.0
-      - name: Run application tests
+        run: >-
+          python -m pip install -e ".[test,asr,onnx-diarization,llm,gui]"
+          llama-cpp-python==0.3.36 faster-whisper==1.2.1 ctranslate2==4.9.0 av==16.1.0
+          sherpa-onnx==2.0.1 onnx==1.23.2 onnxruntime==1.32.0 pyinstaller==6.16.0
+      - name: Prepare verified Windows audio tools
+        run: |
+          $tools=python scripts/prepare_windows_tools.py
+          if ($LASTEXITCODE -ne 0) { throw 'FFmpeg verification failed' }
+          $tools | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Run application and GUI tests
         run: python -m pytest -q
       - name: Build Windows executable
         run: python scripts/build_windows.py
-      - name: Exercise frozen executable
+      - name: Create installer
         run: |
-          & dist/Biography/Biography.exe demo --fixtures examples --output dist/frozen-demo
-          if ($LASTEXITCODE -ne 0) { throw 'Frozen smoke test failed' }
+          $compiler="${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $compiler)) { choco install innosetup -y --no-progress }
+          & $compiler packaging/Biography.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+      - name: Install into a Unicode path and prepare a safe test template
+        run: |
+          $install=Join-Path $env:RUNNER_TEMP 'Установленная Биография'
+          $installer=(Resolve-Path dist/installer/Biography-Setup-Windows-x64.exe).Path
+          $process=Start-Process $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$install+'"')) -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Silent installation failed' }
+          $data=Join-Path $env:RUNNER_TEMP 'Данные офлайн проверки'
+          python scripts/prepare_test_profile.py --data-directory $data
+          if ($LASTEXITCODE -ne 0) { throw 'Test profile preparation failed' }
+      - name: Test installed EXE with actual models and Windows firewall blocking
+        run: |
+          $exe=Join-Path $env:RUNNER_TEMP 'Установленная Биография/Biography.exe'
+          $data=Join-Path $env:RUNNER_TEMP 'Данные офлайн проверки'
+          ./scripts/windows_offline_test.ps1 -Exe $exe -DataDirectory $data
+      - name: Save exact runtime versions
+        if: always()
+        run: |
+          New-Item -ItemType Directory -Path dist/validation -Force | Out-Null
+          python -m pip freeze | Out-File dist/validation/windows-packages.txt -Encoding utf8
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: Biography-Windows-build
+          name: Biography-Windows-build-and-validation
           path: |
-            dist/Biography
-            dist/frozen-demo
+            dist/installer
+            dist/validation
           retention-days: 14
+      - name: Publish tested installer and evidence
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag='v0.2.0-windows-${{ github.run_number }}'
+          Compress-Archive -Path dist/validation/* -DestinationPath dist/Windows-validation.zip
+          $files=Get-ChildItem dist/installer/*,dist/Windows-validation.zip
+          $hashes=$files | Get-FileHash -Algorithm SHA256 | ForEach-Object { $_.Hash.ToLower()+'  '+(Split-Path $_.Path -Leaf) }
+          $hashes | Out-File dist/SHA256SUMS.txt -Encoding ascii
+          gh release create $tag dist/installer/Biography-Setup-Windows-x64.exe dist/Windows-validation.zip dist/SHA256SUMS.txt --target $env:GITHUB_SHA --prerelease --title 'Биография: проверенная Windows-сборка' --notes-file packaging/RELEASE-NOTES.ru.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }

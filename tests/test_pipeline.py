@@ -9,7 +9,7 @@ from biography.alignment import coalesce
 from biography.cli import main
 from biography.demo import run_demo
 from biography.pipeline import Run, run_audio
-from biography.schemas import Segment, Settings, Turn
+from biography.schemas import Role, Segment, Settings, Turn
 
 FIXTURES = Path(__file__).resolve().parents[1] / "examples"
 
@@ -17,11 +17,11 @@ FIXTURES = Path(__file__).resolve().parents[1] / "examples"
 def test_demo_end_to_end_and_no_overwrite(tmp_path):
     out = tmp_path / "result"
     run_demo(FIXTURES, out)
-    report = json.loads((out / "quality_report.json").read_text())
+    report = json.loads((out / "quality_report.json").read_text(encoding="utf-8"))
     assert report["status"] == "completed" and report["accuracy_measured"] is False
     assert report["mode"] == "synthetic_fixture_no_models"
     assert (report["people"], report["facts"], report["conflicts"]) == (3, 8, 1)
-    data = json.loads((out / "facts.json").read_text())
+    data = json.loads((out / "facts.json").read_text(encoding="utf-8"))
     assert data["facts"][-1]["subject_person_id"] is None
     assert data["people"][1]["person_id"] != data["people"][2]["person_id"]
     before = (out / "facts.json").read_bytes()
@@ -38,7 +38,7 @@ def test_stage_failure_and_cancellation_saved(tmp_path):
         with pytest.raises(type(error)), Run(out, "test") as run:
             with run.stage("transcription"):
                 raise error
-        report = json.loads((out / "quality_report.json").read_text())
+        report = json.loads((out / "quality_report.json").read_text(encoding="utf-8"))
         assert (
             report["status"] == status
             and report["stages"]["transcription"]["status"] == status
@@ -78,7 +78,7 @@ def test_real_audio_pipeline_with_explicit_test_adapters(tmp_path, monkeypatch):
         f.setsampwidth(2)
         f.setframerate(16000)
         f.writeframes(b"\x00" * 3200000)
-    fixture = json.loads((FIXTURES / "transcript.json").read_text())
+    fixture = json.loads((FIXTURES / "transcript.json").read_text(encoding="utf-8"))
     segments = [Segment.model_validate(s) for s in fixture["segments"]]
     # Keep scripted source IDs stable: these are full utterances separated by pauses.
     for s in segments:
@@ -101,7 +101,9 @@ def test_real_audio_pipeline_with_explicit_test_adapters(tmp_path, monkeypatch):
 
         def __call__(self, system, payload, schema):
             file = "roles.json" if schema is RoleResult else "facts_expected.json"
-            return schema.model_validate_json((FIXTURES / file).read_text())
+            return schema.model_validate_json(
+                (FIXTURES / file).read_text(encoding="utf-8")
+            )
 
         def close(self):
             pass
@@ -115,12 +117,32 @@ def test_real_audio_pipeline_with_explicit_test_adapters(tmp_path, monkeypatch):
     )
     original = source.read_bytes()
     out = tmp_path / "output"
-    run_audio(source, cfg, out)
+    from biography.pipeline import NeedsRoleConfirmation
+
+    with pytest.raises(NeedsRoleConfirmation):
+        run_audio(source, cfg, out)
+    paused = json.loads((out / "quality_report.json").read_text(encoding="utf-8"))
+    assert paused["status"] == "awaiting_roles"
+    assert not (out / "facts.json").exists()
+    out = tmp_path / "confirmed-output"
+    run_audio(
+        source,
+        cfg,
+        out,
+        {
+            "SPEAKER_00": Role.interviewer,
+            "SPEAKER_01": Role.respondent,
+            "SPEAKER_02": Role.third_party,
+        },
+    )
     assert (
-        json.loads((out / "quality_report.json").read_text())["status"] == "completed"
+        json.loads((out / "quality_report.json").read_text(encoding="utf-8"))["status"]
+        == "completed"
     )
     assert source.read_bytes() == original
-    assert len(json.loads((out / "facts.json").read_text())["facts"]) == 8
+    assert (
+        len(json.loads((out / "facts.json").read_text(encoding="utf-8"))["facts"]) == 8
+    )
 
 
 def test_exported_schemas_match_current_models(tmp_path):
@@ -130,7 +152,9 @@ def test_exported_schemas_match_current_models(tmp_path):
     assert main(["schemas", "--output", str(out)]) == 0
     for model in [Transcript, FactSet, RoleResult]:
         assert (
-            json.loads((out / f"{model.__name__}.schema.json").read_text())
+            json.loads(
+                (out / f"{model.__name__}.schema.json").read_text(encoding="utf-8")
+            )
             == model.model_json_schema()
         )
 

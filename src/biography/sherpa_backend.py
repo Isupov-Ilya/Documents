@@ -95,10 +95,12 @@ def _diarize_worker(wav: Path, settings):
 
 
 def diarize_sherpa(wav: Path, settings):
+    from .runtime import process_command
+
     # Isolate native libraries: a malformed model must not kill the orchestrator.
     load_config(Path(settings.diarization_config))
     response = subprocess.run(
-        [sys.executable, "-m", "biography.sherpa_backend", str(wav.resolve())],
+        process_command("diarization", str(wav.resolve())),
         input=settings.model_dump_json(),
         capture_output=True,
         text=True,
@@ -114,6 +116,9 @@ def diarize_sherpa(wav: Path, settings):
 
 
 if __name__ == "__main__":
+    from .runtime import configure_stdio
+
+    configure_stdio()
     from .offline import offline_mode
     from .schemas import Settings
 

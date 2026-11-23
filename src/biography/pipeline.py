@@ -13,6 +13,10 @@ from .offline import offline_mode
 from .schemas import RoleResult, Transcript
 
 
+class NeedsRoleConfirmation(RuntimeError):
+    pass
+
+
 class Run:
     def __init__(self, output: Path, mode: str):
         output.mkdir(parents=True, exist_ok=False)
@@ -80,7 +84,9 @@ class Run:
         self.thread.join()
         self.report.update(
             status=(
-                "cancelled"
+                "awaiting_roles"
+                if isinstance(error, NeedsRoleConfirmation)
+                else "cancelled"
                 if kind and issubclass(kind, KeyboardInterrupt)
                 else "failed"
                 if kind
@@ -97,7 +103,16 @@ class Run:
         return False
 
 
-def analyze(transcript, llm, run, threshold=0.85, confirmed=None, chunk_chars=5000):
+def analyze(
+    transcript,
+    llm,
+    run,
+    threshold=0.85,
+    confirmed=None,
+    chunk_chars=5000,
+    pause_for_roles=False,
+    profile=None,
+):
     with run.stage("roles"):
         known = {s.speaker_id for s in transcript.segments if s.speaker_id}
         if confirmed and known.issubset(confirmed):
@@ -116,6 +131,17 @@ def analyze(transcript, llm, run, threshold=0.85, confirmed=None, chunk_chars=50
                 run.output / "roles_confirmed.json",
                 {k: v.value for k, v in confirmed.items()},
             )
+    pending = {
+        s.speaker_id
+        for s in transcript.segments
+        if s.speaker_id
+        and (s.speaker_role.value == "unknown" or s.role_confidence < threshold)
+    }
+    if pause_for_roles and pending:
+        run.report["speakers_requiring_confirmation"] = sorted(pending)
+        raise NeedsRoleConfirmation(
+            "Подтвердите роли говорящих и повторите анализ сохранённой транскрипции"
+        )
     with run.stage("facts"):
         facts = extract(
             transcript.segments,
@@ -142,10 +168,16 @@ def analyze(transcript, llm, run, threshold=0.85, confirmed=None, chunk_chars=50
             "WER, DER, полнота и точность привязки не измерены.",
         ],
     )
+    with run.stage("documents"):
+        from .documents import export_documents
+
+        run.report["documents"] = export_documents(
+            transcript, facts, run.output, profile
+        )
     return facts
 
 
-def run_audio(source, settings, output, confirmed=None):
+def run_audio(source, settings, output, confirmed=None, profile=None):
     from .audio import prepare
     from .backends import LocalLLM, diarize, transcribe
 
@@ -182,12 +214,14 @@ def run_audio(source, settings, output, confirmed=None):
                 settings.role_threshold,
                 confirmed,
                 settings.chunk_chars,
+                pause_for_roles=True,
+                profile=profile,
             )
         finally:
             llm.close()
 
 
-def analyze_saved(transcript_path, settings, output, confirmed=None):
+def analyze_saved(transcript_path, settings, output, confirmed=None, profile=None):
     from .backends import LocalLLM
 
     transcript = Transcript.model_validate_json(
@@ -196,6 +230,28 @@ def analyze_saved(transcript_path, settings, output, confirmed=None):
     if not transcript.segments:
         raise ValueError("Транскрипция пуста")
     with Run(output, "saved_transcript_models") as run, offline_mode():
+        import json
+
+        for folder in (transcript_path.parent, transcript_path.parent.parent):
+            metadata = folder / "source.json"
+            if metadata.is_file():
+                write_json(
+                    output / "source.json",
+                    json.loads(metadata.read_text(encoding="utf-8")),
+                )
+                if (folder / "prepared.wav").is_file():
+                    write_json(
+                        output / "audio_link.json",
+                        {"path": str((folder / "prepared.wav").resolve())},
+                    )
+                elif (folder / "audio_link.json").is_file():
+                    write_json(
+                        output / "audio_link.json",
+                        json.loads(
+                            (folder / "audio_link.json").read_text(encoding="utf-8")
+                        ),
+                    )
+                break
         llm = LocalLLM(settings)
         try:
             analyze(
@@ -205,6 +261,8 @@ def analyze_saved(transcript_path, settings, output, confirmed=None):
                 settings.role_threshold,
                 confirmed,
                 settings.chunk_chars,
+                pause_for_roles=True,
+                profile=profile,
             )
         finally:
             llm.close()

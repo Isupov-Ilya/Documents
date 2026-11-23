@@ -12,7 +12,7 @@ def local_path(value: str, directory=False) -> Path:
     return path
 
 
-def transcribe(wav: Path, settings) -> list[Segment]:
+def _transcribe_worker(wav: Path, settings) -> list[Segment]:
     from faster_whisper import WhisperModel
 
     path = local_path(settings.whisper_model, directory=True)
@@ -107,6 +107,7 @@ class LocalLLM:
         self.model = Llama(
             model_path=str(path),
             n_ctx=self.context,
+            n_batch=128,
             n_threads=settings.threads,
             n_gpu_layers=settings.llm_gpu_layers,
             verbose=False,
@@ -116,6 +117,10 @@ class LocalLLM:
     def __call__(self, system: str, payload: dict, schema):
         content = json.dumps(payload, ensure_ascii=False)
         response_schema = schema.model_json_schema()
+        if schema.__name__ == "FactSet":
+            response_schema.get("$defs", {}).get("Fact", {}).get("properties", {}).pop(
+                "human_reviewed", None
+            )
         # Grammar restricts syntax, but does not explain field meanings to the LLM.
         system += (
             "\nФормат результата — JSON по следующей схеме. "
@@ -150,3 +155,25 @@ class LocalLLM:
 
     def close(self):
         self.model.close()
+
+
+def transcribe(wav: Path, settings) -> list[Segment]:
+    import subprocess
+
+    from .runtime import process_command
+
+    local_path(settings.whisper_model, directory=True)
+    response = subprocess.run(
+        process_command("asr", str(wav.resolve())),
+        input=settings.model_dump_json(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if response.returncode:
+        raise RuntimeError(
+            f"ASR worker exited {response.returncode}: {response.stderr[-3000:]}"
+        )
+    return [Segment.model_validate(x) for x in json.loads(response.stdout)]

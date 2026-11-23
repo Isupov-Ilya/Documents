@@ -102,6 +102,7 @@ class Evidence(Record):
 
 class Fact(Record):
     fact_id: str
+    human_reviewed: bool = False
     subject_person_id: str | None
     predicate: str = Field(min_length=1)
     value: str = Field(min_length=1)
