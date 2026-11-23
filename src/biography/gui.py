@@ -897,10 +897,20 @@ class MainWindow(QMainWindow):
                 self.history.setItem(row, col, QTableWidgetItem(str(value)))
 
     def open_history(self, row, col):
+        if self.process:
+            message(
+                self, "Сначала дождитесь завершения или остановите текущую обработку."
+            )
+            return
         self.load_project(Path(self.history_rows[row][3]))
         self.tabs.setCurrentIndex(0)
 
     def import_job(self):
+        if self.process:
+            message(
+                self, "Сначала дождитесь завершения или остановите текущую обработку."
+            )
+            return
         path = QFileDialog.getExistingDirectory(self, "Папка сохранённого интервью")
         if not path:
             return
@@ -961,6 +971,7 @@ class MainWindow(QMainWindow):
         if wave.exists():
             self.player.setSource(QUrl.fromLocalFile(str(wave)))
         report = self.current_output / "quality_report.json"
+        data = {}
         if report.exists():
             data = json.loads(report.read_text(encoding="utf-8"))
             self.status.setText(

@@ -59,3 +59,31 @@ def test_role_confirmation_and_fact_review_widgets(qt_app):
         and editor.facts.facts[0].human_reviewed
     )
     assert facts.facts[0].value != "Проверенное значение"
+
+
+def test_history_cannot_redirect_an_active_job_into_another_project(
+    qt_app, tmp_path, monkeypatch
+):
+    errors = []
+    monkeypatch.setattr(
+        "biography.gui.message", lambda window, text: errors.append(str(text))
+    )
+    w = MainWindow(tmp_path)
+    active = tmp_path / "active-project"
+    w.current_output = active
+    w.process = object()
+    w.history_rows = [
+        (
+            "other",
+            "date",
+            "source",
+            str(tmp_path / "other-project"),
+            "name",
+            "completed",
+        )
+    ]
+    w.open_history(0, 0)
+    w.import_job()
+    assert w.current_output == active and len(errors) == 2
+    w.process = None
+    w.close()
